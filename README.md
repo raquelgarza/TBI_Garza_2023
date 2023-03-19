@@ -1,5 +1,8 @@
 # Quality Filtering for TBI Manuscript
 
+This repository has pre-processing steps for the manuscript
+[Single-cell transcriptomics of resected human traumatic brain injury tissues reveals acute activation of endogenous retroviruses in oligodendroglia](https://www.biorxiv.org/content/10.1101/2022.09.07.506982v1).
+
 ## Organization 
 - `sc_pipeline/` - R scripts used in the snakemake pipeline
 - `rcode/` - Directory containing helper functions (used in `sc_pipeline/` scripts)
@@ -28,8 +31,8 @@ If this does not work, please do a fresh install using the steps below.
 #### Fresh install using `renv`
 ```R 
 require("renv")
-renv::init(bioconductor = T, bare=T)
-renv::install(c("getopt", "futile.logger", "Seurat", "bioc::monocle", "bioc::scater", "bioc::clusterProfiler", "bioc::simpleSingleCell", "ellipse"))
+renv::init(bioconductor = T)
+renv::install(c("getopt", "futile.logger", "bioc::harmony", "Seurat", "bioc::monocle", "bioc::scater", "bioc::clusterProfiler", "bioc::simpleSingleCell", "ellipse"))
 renv::snapshot()
 ```
 
