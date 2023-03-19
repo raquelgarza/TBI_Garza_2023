@@ -1,4 +1,2 @@
-data/MatrixFiles_TBI_Combined filter=lfs diff=lfs merge=lfs -text
-data/MarkersList_Download filter=lfs diff=lfs merge=lfs -text
+data/MarkersList_Download/** filter=lfs diff=lfs merge=lfs -text
 data/humanGeneIDs.rds filter=lfs diff=lfs merge=lfs -text
-data/** filter=lfs diff=lfs merge=lfs -text
