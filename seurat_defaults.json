@@ -1,0 +1,46 @@
+{
+  "NormalizeData": {
+    "normalization.method": "LogNormalize",
+    "scale.factor": 1000
+  },
+  "dispersionFile.height": 7,
+  "dispersionFile.width": 7,
+  "FindVariableGenes": {
+    "x.low.cutoff": 0.0125,
+    "x.high.cutoff": 3,
+    "y.cutoff": 0.5
+  },
+  "RunPCA": {
+    "pcs.print": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "genes.print": 5
+  },
+  "VizPCA": {
+    "height": 11,
+    "width": 7,
+    "pcs.use": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+  },
+  "PCHeatmap": {
+    "height": 11,
+    "width": 7,
+    "pc.use": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "do.balanced": true,
+    "label.columns": false,
+    "use.full": false
+  },
+  "FindClusters": {
+    "dims.use": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "reduction.type": "pca"
+  },
+  "FindAllMarkers": {
+    "only.pos": false,
+    "min.pct": 0.25,
+    "thresh.use": 0.25
+  },
+  "MergeSeurat": {
+    "do.normalize": false,
+    "do.scale": false,
+    "do.center": false,
+    "min.genes": 10,
+    "min.cells": 10
+  }
+}

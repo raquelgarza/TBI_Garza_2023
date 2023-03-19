@@ -1,0 +1,50 @@
+{
+  "DATA_DIR": "data/",
+  "PATTERN": "/filtered_feature_bc_matrix", 
+  "OUT_DIR": "output/",
+  "PROCESSED_DIR": "output/processed",
+  "PANGLODB_DIR": "data/MarkersList_Download",
+  "HUMAN_GENE_IDS_FILE": "data/humanGeneIDs.rds",
+  "MERGE_SAMPLES": {
+    "NONE": {
+      "MJ_TBI_nr1_LT": ["MJ_TBI_nr1_LT"],
+      "MJ_TBI_nr2_LF": ["MJ_TBI_nr2_LF"],
+      "MJ_TBI_nr3_RF":["MJ_TBI_nr3_RF"],
+      "MJ_TBI_nr6_RT":["MJ_TBI_nr6_RT"],
+      "MJ_TBI_nr7_LT":["MJ_TBI_nr7_LT"],
+      "MJ_TBI_nr8_RT":["MJ_TBI_nr8_RT"],
+      "MJ_TBI_nr10_LT":["MJ_TBI_nr10_LT"],
+      "MJ_TBI_nr11_LFP":["MJ_TBI_nr11_LFP"],
+      "MJ_TBI_nr16_RT":["MJ_TBI_nr16_RT"],
+      "MJ_TBI_nr19_RF":["MJ_TBI_nr19_RF"],
+      "MJ_TBI_nr20_RF":["MJ_TBI_nr20_RF"],
+      "MJ_TBI_nr21_RF":["MJ_TBI_nr21_RF"],
+      "TBI_HuBrainCTL_Nuclei501F_F":["TBI_HuBrainCTL_Nuclei501F_F"],
+      "TBI_HuBrainCTL_Nuclei501T_T":["TBI_HuBrainCTL_Nuclei501T_T"],
+      "TBI_HuBrainCTL_Nuclei502T_T":["TBI_HuBrainCTL_Nuclei502T_T"],
+      "TBI_HuBrainCTL_Nuclei529F_F":["TBI_HuBrainCTL_Nuclei529F_F"],
+      "TBI_HuBrainCTL_Nuclei529T_T":["TBI_HuBrainCTL_Nuclei529T_T"]
+    },
+    "ALL": {
+        "te": ["MJ_TBI_nr1_LT", "MJ_TBI_nr2_LF","MJ_TBI_nr3_RF","MJ_TBI_nr6_RT","MJ_TBI_nr7_LT",
+        "MJ_TBI_nr8_RT","MJ_TBI_nr10_LT","MJ_TBI_nr11_LFP","MJ_TBI_nr16_RT","MJ_TBI_nr19_RF",
+        "MJ_TBI_nr20_RF","MJ_TBI_nr21_RF","TBI_HuBrainCTL_Nuclei501F_F",
+        "TBI_HuBrainCTL_Nuclei501T_T","TBI_HuBrainCTL_Nuclei502T_T",
+        "TBI_HuBrainCTL_Nuclei529F_F","TBI_HuBrainCTL_Nuclei529T_T"]
+    },
+      "TEST": {
+        "test": ["MJ_TBI_nr1_LT", "MJ_TBI_nr2_LF", "TBI_HuBrainCTL_Nuclei502T_T"],
+              "MJ_TBI_nr3_RF":["MJ_TBI_nr3_RF"]
+      }
+  },
+  "MERGE_STRATEGIES": {
+    "SeuratV2": "SeuratV2",
+    "SeuratV3": "SeuratV3",
+    "Harmony": "Harmony"
+  },
+  "SEURAT_RESOLUTION": 0.1,
+  "SEURAT_OPTIONS": {
+    "resolution": [0.1]
+  }
+
+}
