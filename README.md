@@ -22,8 +22,7 @@ sudo ln -sfn /opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/Java
 #### Install from `renv` lock file 
 ```R
 require("renv")
-renv::init(bioconductor = T)
-renv::install()
+renv::restore()
 ```
 If this does not work, please do a fresh install using the steps below. 
 #### Fresh install using `renv`
