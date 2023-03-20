@@ -5,9 +5,10 @@ This repository presents analyses for the manuscript
 
 ## Organization 
 - [**tbi_qc.smk**](./tbi_qc.smk) - Main snakemake file which reproduces the quality filtering steps
-- [sc_pipeline/](./sc_pipeline/) - R scripts used in the snakemake pipeline
-- [rcode/](./rcode/) - Directory containing helper functions (used in `sc_pipeline/` scripts)
-
+- `sc_pipeline/` - R scripts used in the snakemake pipeline
+- `rcode/` - Directory containing helper functions (used in `sc_pipeline/` scripts)
+- `data/` - Directory containing input matrix counts (saved using `git lfs`)
+- `output/` - Directory where output artifacts will be generated upon rerunning the pipeline
 
 ## Installation
 #### On Mac M1 
