@@ -4,9 +4,9 @@ This repository presents analyses for the manuscript
 [Single-cell transcriptomics of resected human traumatic brain injury tissues reveals acute activation of endogenous retroviruses in oligodendroglia](https://www.biorxiv.org/content/10.1101/2022.09.07.506982v1).
 
 ## Organization 
+- **`tbi_qc.smk`** - Main snakemake file which reproduces the quality filtering steps
 - `sc_pipeline/` - R scripts used in the snakemake pipeline
 - `rcode/` - Directory containing helper functions (used in `sc_pipeline/` scripts)
-- `tbi_qc.smk` - Main snakemake file which reproduces the quality filtering steps. 
 
 
 ## Installation
