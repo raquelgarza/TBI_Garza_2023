@@ -1,4 +1,4 @@
-# Analyses pipeline for Single-Nuclei RNA-sequencing 
+# Pipeline for single-nuclei RNA-sequencing data 
 
 This repository presents analyses for the manuscript
 [Single-cell transcriptomics of resected human traumatic brain injury tissues reveals acute activation of endogenous retroviruses in oligodendroglia](https://www.biorxiv.org/content/10.1101/2022.09.07.506982v1).
