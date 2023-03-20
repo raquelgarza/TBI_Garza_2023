@@ -49,8 +49,7 @@ CELLRANGER_FILENAMES["barcodes"]="barcodes.tsv.gz"
 
 ## this is directly generated from reading the data_directory 
 ## see steps `find_samples` and `create_sampledf` which can be used to update sampleDf 
-#SAMPLEDF_FILE_PRE=os.path.join(OUT_DIR, "sampleDf_pre.tsv")
-SAMPLEDF_FILE_PRE="/Users/yo4230sh/GDrive/TBIProject_JJLAB/sampleDf_pre.tsv"
+SAMPLEDF_FILE_PRE=os.path.join(OUT_DIR, "sampleDf_pre.tsv")
 SAMPLEDF_FILE=os.path.join(OUT_DIR, "sampleDf.tsv")
 UNPROCESSED_RDS_FILE=os.path.join(OUT_DIR, "unprocessed.rds")
 
