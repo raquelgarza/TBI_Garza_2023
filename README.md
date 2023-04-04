@@ -1,14 +1,34 @@
-# Pipeline for single-nuclei RNA-sequencing data 
+# Pipelines + statistical and visualization scripts
 
 This repository presents analyses for the manuscript
 [Single-cell transcriptomics of resected human traumatic brain injury tissues reveals acute activation of endogenous retroviruses in oligodendroglia](https://www.biorxiv.org/content/10.1101/2022.09.07.506982v1).
 
-## Organization 
-- [**tbi_qc.smk**](./tbi_qc.smk) - Main snakemake file which reproduces the quality filtering steps
-- `sc_pipeline/` - R scripts used in the snakemake pipeline
-- `rcode/` - Directory containing helper functions (used in `sc_pipeline/` scripts)
+## Organization
+- `src` - Directory containing all pipelines and scripts
+- `src/config_files` - Json files required to run the [**Snakefile_snRNAseq_QC**](./src/Snakefile_snRNAseq_QC) pipeline.
+- [**Snakefile_bulkRNAseq**](./src/Snakefile_bulkRNAseq) - Snakemake pipeline to preprocess bulk RNAseq data.
+- [**Snakefile_snRNAseq_QC**](./src/Snakefile_snRNAseq_QC) - Snakemake file which reproduces the quality filtering steps.
+- [**main_combinedUMAP_perCluster.py**](./src/main_combinedUMAP_perCluster.py) - trusTEr script to quantify TEs per cluster, per condition.
+- [**main_combinedUMAP_perCluster_perSample.py**](./src/main_combinedUMAP_perCluster_perSample.py) - trusTEr script to quantify TEs per cluster, per sample.
+- [**Snakefile_snRNAseq_celltype**](./src/Snakefile_snRNAseq_celltype) - Snakemake pipeline to index and convert to bigWig files the cluster BAM files output from trusTEr.
+- `src/sc_pipeline` - R scripts used by [**Snakefile_snRNAseq_QC**](./src/Snakefile_snRNAseq_QC)
+- `src/rcode` - Directory containing helper functions (used in `sc_pipeline/` scripts) and R markdowns for downstream analyses and visualization for the figures. Main scripts to look for:
+	+ [**TBI_bulk.Rmd**](./src/rcode/TBI_bulk.Rmd) - R markdown for the statistical analyses and visualization of bulk RNAseq data
+		* Normalization
+		* Differential expression analysis of ERVs
+		* Characterization of putative proteins and LTRs
+	+ [**TBI_snRNAseq_TE_expression.Rmd**](./src/rcode/TBI_snRNAseq_TE_expression.Rmd) - Visualization of trusTEr's output (TE quantification per cluster)
+	+ [**TBI_snRNAseq_gene_expression.Rmd**](./src/rcode/TBI_snRNAseq_TE_expression.Rmd) - Cell characterization and differential gene expression analysis of snRNAseq
+		* Cell characterization and visualization of the data
+		* Cell cycle scoring
+		* Differential gene expression analysis per cell type
+		* Gene set enrichment analysis per cell type
+		* Enrichment scores for innate immunity related genes
+		* Visualization of gene expression
+	+ [**TBI_snRNAseq_gene_expression_QC_preprocessing.Rmd**] - Visualization of quality control metrics for snRNAseq data
 - `data/` - Directory containing input matrix counts (saved using `git lfs`)
 - `output/` - Directory where output artifacts will be generated upon rerunning the pipeline
+- `tables/` - Directory containing tables with differential gene expression analysis per cell type and gene set enrichment analysis results.
 
 ## Installation
 #### On Mac M1 
@@ -23,7 +43,7 @@ sudo ln -sfn /opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk /Library/Java/Java
 ```
 
 
-#### Install from `renv` lock file 
+#### Install from `renv` lock file
 ```R
 require("renv")
 renv::restore()
