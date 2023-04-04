@@ -28,7 +28,7 @@ This repository presents analyses for the manuscript
 	+ [**TBI_snRNAseq_gene_expression_QC_preprocessing.Rmd**] - Visualization of quality control metrics for snRNAseq data
 - `data/` - Directory containing input matrix counts (saved using `git lfs`)
 - `output/` - Directory where output artifacts will be generated upon rerunning the pipeline
-- `tables/` - Directory containing tables with differential gene expression analysis per cell type and gene set enrichment analysis results.
+- `tables/` - Directory containing tables with differential gene expression analysis [**per cluster**](./tables/MarkersPerCluster.tsv), [**per cell type**](./tables/DEA/per_celltype/), and [**gene set enrichment analysis results**](./tables/GO_overrepresentation/seed_7/per_celltype/).
 
 ## Installation
 #### On Mac M1 
