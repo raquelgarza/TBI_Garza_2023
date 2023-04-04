@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Filtered matrices seurat
+```{r}
+library(Seurat)
+library(stringr)
+library(ggpubr)
+library(ggplot2)
+library(scater)
+
+path <- c("/Volumes/MyPassport/TBI/03.05.22/1_count_premRNA")
+
+files <- list.files(path, full.names = T)
+files <- files[which(!grepl("web_summary", files))]
+files <- paste(files, "/outs/filtered_feature_bc_matrix/", sep="")
+
+samples <- list()
+samples_data <- list()
+samples_info <- list()
+samples_inflection <- list()
+for(i in 1:length(files)){
+  sample_name <- sapply(str_split(files[i], "/"), `[[`, 7)
+  samples_data[[sample_name]] <- Read10X(data.dir = files[i])# , "outs/filtered_feature_bc_matrix/", sep="/")
+  samples[[sample_name]] <- CreateSeuratObject(counts = samples_data[[sample_name]], project = sample_name, min.cells = 3, min.features = 200)
+  samples[[sample_name]][["percent.mt"]] <- PercentageFeatureSet(samples[[sample_name]], pattern = "^MT-")
+  samples_info[[sample_name]] <- FetchData(samples[[sample_name]], c("orig.ident", "nFeature_RNA", "nCount_RNA", "percent.mt"))
+}
+
+
+samples_info_df <- do.call("rbind", samples_info)
+samples_info_df_melt <- reshape2::melt(samples_info_df[,c("orig.ident", "nFeature_RNA", "nCount_RNA", "percent.mt")], by="orig.ident", measure.vars = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+ggplot(samples_info_df_melt[which(samples_info_df_melt$variable == "nFeature_RNA"),], aes(x=orig.ident, y=value, fill=variable)) + geom_violin()+ geom_boxplot(width=0.1)  + theme_classic()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(y="", x="", fill="") + geom_hline(linetype = "dashed", colour = "blue", yintercept = 1000)
+ggplot(samples_info_df_melt[which(samples_info_df_melt$variable == "nCount_RNA"),], aes(x=orig.ident, y=value, fill=variable)) + geom_violin() + theme_classic()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(y="", x="", fill="")
+ggplot(samples_info_df_melt[which(samples_info_df_melt$variable == "percent.mt"),], aes(x=orig.ident, y=value, fill=variable)) + geom_violin() + theme_classic()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(y="", x="", fill="")
+
+samples_info_plot <- list()
+for(sample in unique(samples_info_df_melt$orig.ident)) samples_info_plot[[sample]] <- ggplot(samples_info_df_melt[which(samples_info_df_melt$variable == "nFeature_RNA" & samples_info_df_melt$orig.ident == sample),], aes(x=orig.ident, y=value)) + geom_violin() + theme_classic() + geom_point(y= mean(samples_info_df_melt[which(samples_info_df_melt$variable == "nFeature_RNA" & samples_info_df_melt$orig.ident == sample),"value"])) + 
+  geom_hline(linetype = "dashed", colour = "blue", yintercept = 1000) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["lower"])) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["higher"])) + 
+  labs(x="", y="") + lims(y=c(0,10000))
+# pdf("/Volumes/MyPassport/TBI/manuscript/March2023/plots/violin_QC.pdf", width = 14)
+ggarrange(plotlist = samples_info_plot, ncol=12, nrow=2)
+# dev.off()
+```
