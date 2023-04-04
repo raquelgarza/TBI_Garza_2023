@@ -1,0 +1,298 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    code_folding: show
+---
+
+This Markdown encompass the code that was used to generate the bulk RNAseq figures for the (manuscript)[https://doi.org/10.1101/2022.09.07.506982] titled: Single-cell transcriptomics of resected human traumatic brain injury tissues reveals acute activation of endogenous retroviruses in oligodendroglia.
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '/Volumes/MyPassport/TBI/CTG_JGJSeq149_150_152/')
+```
+
+## Some functions
+Click code to unfold
+```{r class.source = 'fold-hide'}
+## getSignName ##
+# Get significantly different gene names. 
+# Taken from source code of the package deseqAbstraction which is no longer available on github.
+# Credits to Per L. Brattås
+# Parameters:
+# x = results object from deseq
+# p = padj threshold for significance
+# l = log2FC threshold for significance
+getSignName <- function(x,p,l=0) {
+  up <- x[!is.na(x$padj) & x$padj < p & x$log2FoldChange > l,]
+  down <- x[!is.na(x$padj) & x$padj < p & x$log2FoldChange < -l,]
+  return(list(up=rownames(up),down=rownames(down)))
+}
+## getAverage ##
+# Get average expression (normalized by median of ratios) of each of the conditions in a deseq object.
+# Taken from source code of the package deseqAbstraction which is no longer available on github.
+# Credits to Per L. Brattås
+# Parameters:
+# dds = deseq object
+getAverage <- function(dds) {
+  baseMeanPerLvl <- sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) )
+  baseSDPerLvl <- sapply( levels(dds$condition), function(lvl) apply( counts(dds,normalized=TRUE)[,dds$condition == lvl],1,sd ) )
+  colnames(baseSDPerLvl) <- paste("st.dev:",colnames(baseSDPerLvl),sep="")
+  return(list(Mean=baseMeanPerLvl,SD=baseSDPerLvl))
+}
+
+meanPlot_cus <- function(exp,test,c1 = "condition 1",c2 = "condition 2",p=.05,l=0,id=F, ttl="", 
+                         repel=TRUE, col1="firebrick3", col2="steelblue4", col3="black", highlights=NA){
+  sign <- getSignName(x = test,p = p,l = l)
+  u <- sign$up
+  d <- sign$down
+  
+  #color up and down sign..
+  colVec <- ifelse(test = (rownames(exp) %in% u),
+                   yes = col1,
+                   no = ifelse(test = (rownames(exp) %in% d),
+                               yes = col2, no =col3))
+  colVec[is.na(colVec)] <- "steelblue" ## if NA make sure it's not counted as <p
+  #size of points
+  cexVec <- ifelse(test = (rownames(exp) %in% u),
+                   yes = 0.35,
+                   no = ifelse(test = (rownames(exp) %in% d),
+                               yes = 0.35, no = 0.3))
+  
+  exp_log <- as.data.frame(log2(exp[,c(c1, c2)]))
+  exp_log$Name <- rownames(exp_log)
+  
+  exp_log$reg <- factor(ifelse(exp_log$Name %in% u, paste('upregulated in ', c1, ' (', length(u), ')', sep =''),
+                               ifelse(exp_log$Name %in% d, paste('downregulated in ', c1,' (', length(d), ')', sep =''), paste('not significant', ' (', (nrow(test) - length(u) - length(d)), ')', sep=''))))
+  
+  library(ggrepel)
+  if(repel == TRUE){
+    plt <- ggplot(exp_log, aes(x=get(c2), y=get(c1), label=Name, color=reg)) + geom_point(aes(size=cexVec))+ scale_color_manual(values=c(col2, col3, col1))+ scale_size_continuous(range=c(1,2), guide="none")+ geom_text_repel(data = subset(exp_log, Name %in% u | Name %in% d),direction    = "y", nudge_y = 0.4, nudge_x = -0.5)
+  }
+  else{
+    plt <- ggplot(exp_log, aes(x=get(c2), y=get(c1), color=reg)) + geom_point(aes(size=cexVec))+ scale_color_manual(values=c(col2, col3, col1))+ scale_size_continuous(range=c(1,2), guide="none")
+  }
+  plt <- plt + labs(x=paste("log2(mean ",c2,")",sep=""), 
+                    y=paste("log2(mean ",c1,")",sep=""),
+                    title=paste(ttl, paste(c1," vs. ",c2,sep=""), sep = ': '),
+                    subtitle=paste("p-adj < ",p,", log2(fc) > ",l,sep=""))+theme(
+                      plot.title = element_text( size=14, face="bold"),  panel.grid.major = element_line(colour="white"),
+                      panel.grid.minor = element_line(colour="white"), panel.background = element_rect(fill = "white",
+                                                                                                       colour = "white",
+                                                                                                       size = 0.5, linetype = "solid"),
+                      axis.line = element_line(size = 0.5, linetype = "solid",
+                                               colour = "black"), 
+                      legend.title=element_blank()) 
+  
+  
+  if(id==T) {
+    
+    identify(log2(exp[,1]),log2(exp[,2]),labels = rownames(exp))
+    
+  }
+  
+  if(!is.na(highlights)){
+    plt <- plt + geom_point(data=exp_log[highlights,], aes(x=get(c2), y=get(c1)), colour="springgreen3", size=5, shape=1, stroke=2)
+  }
+  return(plt)
+  
+}
+```
+
+## Gene differential expression analysis 
+
+### PCA plot
+```{r genePCA, message=FALSE}
+library(pheatmap)
+library(DESeq2)
+library(stringr)
+library(ggplot2)
+library(data.table)
+library(ggrepel)
+library(ggpubr)
+
+# Reading gene quantification ----
+counts <- fread("gene_counts/default/gene_count_matrix_2.csv", data.table=F)
+colnames(counts)[7:ncol(counts)] <- sapply(str_split(colnames(counts)[7:ncol(counts)], "/"), `[[`, 8)
+
+coldata <- data.frame(sample= colnames(counts)[7:ncol(counts)])
+coldata$condition <- ifelse(grepl("ctrl", coldata$sample), "Control", "TBI")
+
+rownames(coldata) <- coldata$sample
+rownames(counts) <- counts$Geneid
+```
+
+
+### We start by comparing control and TBI in gene expression levels
+```{r}
+gene_dds <- DESeqDataSetFromMatrix(counts[,rownames(coldata)], coldata, design = ~ condition)
+gene_dds$condition <- relevel(gene_dds$condition, "Control")
+gene_dds <- DESeq(gene_dds)
+gene_dds$sizeFactor
+gene_vst <- varianceStabilizingTransformation(gene_dds)
+
+plotPCA(gene_vst) + theme_classic() + ylim(c(-50,50)) + labs(colour="Condition") +
+  ggtitle("PCA - Top 500 most variable genes") +  scale_colour_discrete(name = "Condition")
+```
+
+
+### ALL HERVs Volcano plot
+
+Here we have used featureCounts to quantify the expression of predicted HERV sequences in hg38 (retrotector).
+```{r}
+FL_HERVcounts_uniq <- fread("TEcounts/unique/FL_HERV_count_matrix_2.csv", data.table=F)
+colnames(FL_HERVcounts_uniq)[7:ncol(FL_HERVcounts_uniq)] <- sapply(str_split(colnames(FL_HERVcounts_uniq)[7:ncol(FL_HERVcounts_uniq)], "/"), `[[`, 9)
+
+rownames(FL_HERVcounts_uniq) <- FL_HERVcounts_uniq$Geneid
+FL_HERV_dds <- DESeqDataSetFromMatrix(FL_HERVcounts_uniq[,rownames(coldata)], coldata, design = ~ condition)
+FL_HERV_dds$condition <- relevel(FL_HERV_dds$condition, "Control")
+FL_HERV_dds <- DESeq(FL_HERV_dds)
+
+FL_HERV_res <- lfcShrink(FL_HERV_dds, coef="condition_TBI_vs_Control", type="apeglm")
+
+FL_HERV_res_df <- as.data.frame(FL_HERV_res)
+
+library(EnhancedVolcano)
+EnhancedVolcano(FL_HERV_res,
+  lab = NA, 
+  x = 'log2FoldChange', 
+  y = 'pvalue', pCutoff = 0.05, FCcutoff = 1, pointSize = 1, ylim = c(0,5))
+
+table(FL_HERV_res$pvalue < 0.05 & abs(FL_HERV_res$log2FoldChange) > 1)
+table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange < -1)
+nrow(FL_HERV_res)
+
+table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange > 1)[["TRUE"]]/table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange < -1)[["TRUE"]]
+
+table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange > 0.5)[["TRUE"]]/table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange < -0.5)[["TRUE"]]
+
+rownames(FL_HERVcounts_uniq) <- FL_HERVcounts_uniq$Geneid
+FL_HERVcounts_uniq_norm <- FL_HERVcounts_uniq[,rownames(coldata)]
+FL_HERVcounts_uniq_norm[] <- mapply('/', FL_HERVcounts_uniq_norm[,names(gene_dds$sizeFactor)], gene_dds$sizeFactor)
+
+FL_HERVcounts_uniq_norm_upreg <- FL_HERVcounts_uniq_norm[rownames(FL_HERV_res[which(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange > 1),]),]
+FL_HERVcounts_uniq_norm_upreg$herv_id <- rownames(FL_HERVcounts_uniq_norm_upreg)
+FL_HERVcounts_uniq_norm_upreg_melt <- reshape2::melt(FL_HERVcounts_uniq_norm_upreg, by=list(FL_HERVcounts_uniq_norm_upreg$herv_id))
+FL_HERVcounts_uniq_norm_upreg_melt <- merge(FL_HERVcounts_uniq_norm_upreg_melt, coldata, by.x="variable", by.y="sample")
+
+padj_genes <- FL_HERV_res[rownames(FL_HERVcounts_uniq_norm_upreg), "pvalue", drop=F]
+padj_genes$group1 <- "Control"
+padj_genes$group2 <- "TBI"
+padj_genes$pvalue <- ifelse(padj_genes$pvalue > 0.05 | is.na(padj_genes$pvalue), "n.s.", format(padj_genes$pvalue, digits = 2))
+padj_genes_split <- split(padj_genes, rownames(padj_genes))
+
+FL_HERVcounts_uniq_norm_upreg_melt <- merge(FL_HERVcounts_uniq_norm_upreg_melt, as.data.frame(padj_genes), by.y="row.names", by.x="herv_id")
+FL_HERVcounts_uniq_norm_upreg_melt[which(duplicated(FL_HERVcounts_uniq_norm_upreg_melt$herv_id)),"pvalue"] <- NA
+FL_HERVcounts_uniq_norm_upreg_melt_list <- split(FL_HERVcounts_uniq_norm_upreg_melt, f = FL_HERVcounts_uniq_norm_upreg_melt$herv_id)
+
+FL_HERVcounts_uniq_norm_upreg_plots <- list()
+for(herv in names(FL_HERVcounts_uniq_norm_upreg_melt_list)) FL_HERVcounts_uniq_norm_upreg_plots[[herv]] <- ggplot(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]], aes(x=condition, y=value)) + geom_boxplot() + 
+  geom_jitter(width = 0.15, alpha=0.5)  + theme_classic() + 
+  scale_fill_manual(values = c("TBI" = "#92312d", "Control" = "#bcbcbc")) + labs(x="", y="Median of ratios", fill = "") +
+  stat_pvalue_manual(as.data.frame(padj_genes_split[[herv]]), y.position = max(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value)+sd(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value), label = "pvalue") + 
+  ggtitle(herv) + lims(y = c(0,  max(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value)+2*sd(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value)))
+
+ggarrange(plotlist = FL_HERVcounts_uniq_norm_upreg_plots, ncol=5, nrow = 3)
+
+```
+
+### Upregulated HERVs - Putative proteins
+
+How many of the upregulated HERVs have putative proteins? Which ones?
+```{r}
+FL_HERVcounts_uniq_upreg <- FL_HERVcounts_uniq[rownames(FL_HERV_res[which(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange > 1),]),]
+
+hg38_ERVs <- fread("/Volumes/MyPassport/annotations/human/retrotector/hg38.ERVs.Info.txt", data.table = F, fill = T)
+hg38_ERVs$alt_start <- ifelse(hg38_ERVs$end < hg38_ERVs$start, hg38_ERVs$end, hg38_ERVs$start)
+hg38_ERVs$alt_end <- ifelse(hg38_ERVs$start == hg38_ERVs$alt_start, hg38_ERVs$end, hg38_ERVs$start)
+hg38_ERVs$coords <- paste(hg38_ERVs$Chr, hg38_ERVs$start, hg38_ERVs$end, sep="_")
+hg38_ERVs_nodups <- hg38_ERVs[which(!duplicated(hg38_ERVs$coords)),]
+
+# putative proteins
+hg38_ERVs_proteins <- fread("/Volumes/MyPassport/annotations/human/retrotector/ERVandPuteinPos_hg38rt102v150418.txt", data.table = F)
+hg38_ERVs_proteins$coords <- paste(hg38_ERVs_proteins$Chr, hg38_ERVs_proteins$Start, hg38_ERVs_proteins$End, sep = "_")
+hg38_ERVs_proteins_per_coord <- as.data.frame.matrix(table(hg38_ERVs_proteins$coords, hg38_ERVs_proteins$Putein))
+
+hg38_ERVs_nodups <- merge(hg38_ERVs_nodups, hg38_ERVs_proteins_per_coord, by.y="row.names", by.x="coords", all.x=T)
+hg38_ERVs_nodups$Env <- hg38_ERVs_nodups$Env + hg38_ERVs_nodups$ENV # Is this assumption right?
+hg38_ERVs_nodups$Env <- ifelse(hg38_ERVs_nodups$Env  >= 1, 1, 0)
+hg38_ERVs_nodups$Gag <- ifelse(hg38_ERVs_nodups$Gag  >= 1, 1, 0)
+hg38_ERVs_nodups$Pro <- ifelse(hg38_ERVs_nodups$Pro  >= 1, 1, 0)
+hg38_ERVs_nodups$Pol <- ifelse(hg38_ERVs_nodups$Pol  >= 1, 1, 0)
+hg38_ERVs_nodups$`NULL` <- ifelse(hg38_ERVs_nodups$`NULL` >= 1, 1, 0)
+
+FL_HERVcounts_uniq_upreg <- merge(FL_HERVcounts_uniq_upreg, hg38_ERVs_nodups, by.x=c("Chr", "Start", "End"), by.y=c("Chr", "alt_start", "alt_end"), all.x=T)
+rownames(FL_HERVcounts_uniq_upreg) <- FL_HERVcounts_uniq_upreg$Geneid
+
+library(UpSetR)
+FL_HERVcounts_uniq_upreg_putative_proteins <- FL_HERVcounts_uniq_upreg[,c("coords", "Env", "Gag", "Pro", "Pol")]
+rownames(FL_HERVcounts_uniq_upreg_putative_proteins) <- FL_HERVcounts_uniq_upreg_putative_proteins$coords
+FL_HERVcounts_uniq_upreg_putative_proteins <- FL_HERVcounts_uniq_upreg_putative_proteins[,-1]
+FL_HERVcounts_uniq_upreg_putative_proteins$No <- ifelse((FL_HERVcounts_uniq_upreg_putative_proteins$Env + FL_HERVcounts_uniq_upreg_putative_proteins$Gag + FL_HERVcounts_uniq_upreg_putative_proteins$Pro + FL_HERVcounts_uniq_upreg_putative_proteins$Pol) == 0, 1, 0)
+
+upset(FL_HERVcounts_uniq_upreg_putative_proteins, keep.order = T, sets = c("No", "Pol", "Pro", "Gag", "Env"))
+```
+
+### Do they have LTRs? How old are they?
+```{r}
+FL_HERVcounts_uniq_upreg$LTRs_present <- ifelse(startsWith(FL_HERVcounts_uniq_upreg$subgenes, "5LTR") & endsWith(FL_HERVcounts_uniq_upreg$subgenes, "3LTR"), "Both LTRs", # If it starts and ends with the expected LTRs, it has both. If not
+                                                ifelse(startsWith(FL_HERVcounts_uniq_upreg$subgenes, "5LTR") | endsWith(FL_HERVcounts_uniq_upreg$subgenes, "3LTR"), # And if it has one or the other, check if it's the 5' LTR. If not, it doesnt have any.
+                                                       ifelse(startsWith(FL_HERVcounts_uniq_upreg$subgenes, "5LTR"), "5' LTR present", "3' LTR present"), "No LTRs")) # If it does have the 5' LTR, it only has the 5' LTR, if not only the 3' LTR. 
+
+hist(FL_HERVcounts_uniq_upreg$End - FL_HERVcounts_uniq_upreg$Start, xlab = "length", main = "Length of HERV")
+
+LTRs_present_upreg_HERVs <- as.data.frame(table(FL_HERVcounts_uniq_upreg$LTRs_present))
+colnames(LTRs_present_upreg_HERVs) <- c("variable", "Frequency")
+LTRs_present_upreg_HERVs$variable <- factor(LTRs_present_upreg_HERVs$variable, levels = c("Both LTRs", "5' LTR present", "3' LTR present", "No LTRs"))
+
+ggplot(LTRs_present_upreg_HERVs, aes(x=variable, y=Frequency)) + geom_bar(stat="identity", position="dodge") + theme_classic() + labs(fill="", x="Upregulated HERVs")
+
+FL_HERVcounts_uniq_upreg$`LTRdiv(%)` <- ifelse(FL_HERVcounts_uniq_upreg$`LTRdiv(%)` == "na", NA, FL_HERVcounts_uniq_upreg$`LTRdiv(%)`)
+FL_HERVcounts_uniq_upreg$`LTRdiv(%)` <- as.numeric(as.character(FL_HERVcounts_uniq_upreg$`LTRdiv(%)`))
+
+hist(FL_HERVcounts_uniq_upreg$`LTRdiv(%)`, main = "Upregulated HERVs - LTR % of divergence", xlab = "% of divergence", breaks = 10)
+```
+
+### How is gene expression nearby affected?
+```{r}
+gene_res <- lfcShrink(gene_dds, coef="condition_TBI_vs_Control", type="apeglm")
+
+genes_2kb <- fread("data/upregulated_proviruses_2kb_intersect_genes.tab", data.table = F, skip=1, header=F)
+genes_5kb <- fread("data/upregulated_proviruses_5kb_intersect_genes.tab", data.table = F, skip=1, header=F)
+genes_10kb <- fread("data/upregulated_proviruses_10kb_intersect_genes.tab", data.table = F, skip=1, header=F)
+genes_15kb <- fread("data/upregulated_proviruses_15kb_intersect_genes.tab", data.table = F, skip=1, header=F)
+genes_20kb <- fread("data/upregulated_proviruses_20kb_intersect_genes.tab", data.table = F, skip=1, header=F)
+
+colnames(genes_2kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
+colnames(genes_5kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
+colnames(genes_10kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
+colnames(genes_15kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
+colnames(genes_20kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
+
+genes_20kb <- genes_20kb[which(!genes_20kb$gene_id %in% genes_15kb$gene_id),]
+genes_15kb <- genes_15kb[which(!genes_15kb$gene_id %in% genes_10kb$gene_id),]
+genes_10kb <- genes_10kb[which(!genes_10kb$gene_id %in% genes_5kb$gene_id),]
+genes_5kb <- genes_5kb[which(!genes_5kb$gene_id %in% genes_2kb$gene_id),]
+
+genes_2kb_res <- as.data.frame(gene_res[genes_2kb$gene_id,])
+genes_5kb_res <- as.data.frame(gene_res[genes_5kb$gene_id,])
+genes_10kb_res <- as.data.frame(gene_res[genes_10kb$gene_id,])
+genes_15kb_res <- as.data.frame(gene_res[genes_15kb$gene_id,])
+genes_20kb_res <- as.data.frame(gene_res[genes_20kb$gene_id,])
+
+genes_2kb_res$type <- "0-2kb"
+genes_5kb_res$type <- "2-5kb"
+genes_10kb_res$type <- "5-10kb"
+genes_15kb_res$type <- "10-15kb"
+genes_20kb_res$type <- "15-20kb"
+
+genes_around_upreg_hervs <- rbind(genes_2kb_res,
+                                  genes_5kb_res,
+                                  genes_10kb_res,
+                                  genes_15kb_res,
+                                  genes_20kb_res)
+genes_around_upreg_hervs$type <- paste(genes_around_upreg_hervs$type, "\n(", table(genes_around_upreg_hervs$type)[genes_around_upreg_hervs$type], " genes)", sep="")
+genes_around_upreg_hervs$type <- factor(genes_around_upreg_hervs$type, levels = c("0-2kb\n(11 genes)", "2-5kb\n(7 genes)", "5-10kb\n(6 genes)", "10-15kb\n(8 genes)", "15-20kb\n(10 genes)"))
+
+ggplot(genes_around_upreg_hervs, aes(x=type, y=log2FoldChange)) + geom_boxplot() + theme_classic() + labs(x="Distance from upregulated HERV")
+```
+
