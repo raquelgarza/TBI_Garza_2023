@@ -65,7 +65,7 @@ To reproduce the QC analysis, please do the following steps:
 - Run the following command: 
 
 ```shell 
-snakemake -f tbi_qc.smk merge_samples 
+snakemake -f ./src/Snakefile_snRNAseq_QC merge_samples 
 ``` 
 This will create run the QC steps in `output/` sub-directory. The final output file is `output/merged/ALL_Harmony/results-merged.rds` which is used in downstream analysis.
 
