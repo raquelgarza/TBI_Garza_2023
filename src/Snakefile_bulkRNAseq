@@ -1,0 +1,319 @@
+# -*- coding: utf-8 -*-
+
+# lunarc configuration file
+# configuration file with sample list (yaml list)
+
+import os
+
+WD = "CTG_JGJSeq149_150_152/TBI/"
+configfile: os.path.join(WD, "src/config_files/config.json")
+
+SAMPLES = config["samples"]
+geneGTF = "annotations/hg38/gencode/v38/gencode.v38.annotation.gtf"
+starIndex = "GRCh38.p13_gencode.v38_STAR"
+teGTF = "annotations/hg38/repeatmasker/hg38_rmsk_TEtranscripts.gtf"
+
+# Run as:
+# snakemake -j 5 --cluster-config CTG_JGJSeq149_150_152/TBI/src/config_files/lunarc_config.json --cluster "sbatch -A {cluster.account} -p {cluster.partition} --tasks-per-node {cluster.tasks-per-node}  -t {cluster.time} -o {cluster.output} -e {cluster.error} -J {cluster.job-name} -N {cluster.nodes}" --latency-wait 60
+
+rule all:
+    input:
+        os.path.join(WD, "TEcounts/unique/FL_HERV_count_matrix_2.csv")
+
+rule uniquemapping:
+    input:
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R1_001.fastq.gz",
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R2_001.fastq.gz",
+        starIndex,
+        geneGTF
+    params:
+        prefix = os.path.join(WD, "map/unique/{sample}/{sample}_")
+    output:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam")
+    shell:
+        """
+        module purge
+        ml GCC/10.2.0 STAR/2.7.8a
+
+        STAR --runThreadN 10 \
+        --readFilesCommand gunzip -c \
+        --outSAMattributes All \
+        --outSAMtype BAM SortedByCoordinate \
+        --genomeDir {input[2]} \
+        --sjdbGTFfile {input[3]} \
+        --outFileNamePrefix {params.prefix} \
+        --outFilterMultimapNmax 1 \
+        --outFilterMismatchNoverLmax 0.03  \
+        --readFilesIn  {input[0]} {input[1]}
+        module purge
+        """
+rule mapping:
+    input:
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R1_001.fastq.gz",
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R2_001.fastq.gz",
+        starIndex,
+        geneGTF
+    params:
+        prefix = os.path.join(WD, "map/default/{sample}/{sample}_")
+    output:
+        os.path.join(WD, "map/default/{sample}/{sample}_Aligned.sortedByCoord.out.bam")
+    shell:
+        """
+        module purge
+        #echo Mapping reads from {wildcards.sample} to hg38!
+        ml GCC/10.2.0 STAR/2.7.8a
+
+        STAR --runThreadN 10 \
+        --readFilesCommand gunzip -c \
+        --outSAMattributes All \
+        --outSAMtype BAM SortedByCoordinate \
+        --genomeDir {input[2]} \
+        --sjdbGTFfile {input[3]} \
+        --outFileNamePrefix {params.prefix} \
+        --readFilesIn  {input[0]} {input[1]}
+
+        module purge
+        """
+rule multimapping:
+    input:
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R1_001.fastq.gz",
+        lambda wildcards: f"{config['samples'][wildcards.sample]}_R2_001.fastq.gz",
+        starIndex,
+        geneGTF
+    params:
+        prefix = os.path.join(WD, "map/multiple/{sample}/{sample}_")
+    output:
+        os.path.join(WD, "map/multiple/{sample}/{sample}_Aligned.sortedByCoord.out.bam")
+    shell:
+        """
+        module purge
+        ml GCC/10.2.0 STAR/2.7.8a
+
+        STAR --runThreadN 10 \
+        --readFilesCommand gunzip -c \
+        --outSAMattributes All \
+        --outSAMtype BAM SortedByCoordinate \
+        --sjdbGTFfile {input[3]} \
+        --genomeDir {input[2]} \
+        --outFileNamePrefix {params.prefix} \
+        --outFilterMultimapNmax 100 \
+        --winAnchorMultimapNmax 200  \
+        --readFilesIn  {input[0]} {input[1]}
+        module purge
+        """
+
+rule indexing:
+    input:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam")
+    output:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam.bai")
+    shell:
+        """
+        ml GCC/10.2.0 SAMtools/1.12
+        samtools index -b {input}
+
+        module purge
+        """
+rule bigwig:
+    input:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam"),
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam.bai")
+    output:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bw")
+    shell:
+        """
+        ml GCC/7.3.0-2.30  OpenMPI/3.1.1 deepTools/2.5.4-Python-3.6.6
+        bamCoverage --normalizeUsingRPKM -b {input[0]} -o {output}
+
+        module purge
+        """
+
+rule filterStrand:
+    input:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam"),
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam.bai")
+    output:
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.forward.bw"),
+        os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.reverse.bw")
+    shell:
+        """
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+
+        bamCoverage --normalizeUsingRPKM --filterRNAstrand forward -b {input[0]} -o {output[0]}
+        bamCoverage --normalizeUsingRPKM --filterRNAstrand reverse -b {input[0]} -o {output[1]}
+
+        module purge
+        """
+
+rule gene_quantification:
+    input:
+        annotation = geneGTF,
+        samples=expand(os.path.join(WD, "map/default/{sample}/{sample}_Aligned.sortedByCoord.out.bam"), sample=SAMPLES)
+    output:
+        os.path.join(WD, "gene_counts/default/gene_count_matrix_2.csv")
+    shell:
+        """
+        module purge
+
+        ml GCC/7.3.0-2.30  OpenMPI/3.1.1
+        ml Subread/1.6.3
+
+        featureCounts -p -F GTF -s 2 -a {input.annotation} -o {output} {input.samples}
+
+        module purge
+        """
+rule TE_quantification:
+    input:
+        TEgtf = teGTF,
+        samples=expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam"), sample=SAMPLES)
+    output:
+        os.path.join(WD, "TEcounts/unique/TE_count_matrix_2.csv")
+    shell:
+        """
+        ml GCC/7.3.0-2.30  OpenMPI/3.1.1
+        ml Subread/1.6.3
+
+        featureCounts -p -s 2 -F GTF -g transcript_id -a {input.TEgtf} -o {output} {input.samples}
+
+        module purge
+        """
+rule TEcounts:
+    input:
+        bam = os.path.join(WD, "map/multiple/{sample}/{sample}_Aligned.sortedByCoord.out.bam"),
+        gtf = geneGTF,
+        TEgtf = teGTF
+    params:
+        prefix = os.path.join(WD, "TEcounts/multiple/{sample}")
+    output:
+        os.path.join(WD, "TEcounts/multiple/{sample}.cntTable")
+    shell:
+        """
+        module purge
+        ml icc/2018.1.163-GCC-6.4.0-2.28  OpenMPI/2.1.2 TEToolkit/2.0.3-Python-2.7.14
+
+        TEcount -b {input.bam} --GTF {input.gtf} --TE {input.TEgtf} --stranded reverse --mode multi --project {params.prefix} --format BAM --sortByPos
+
+        module purge
+        """
+
+
+rule matrix_FL_ERVs:
+    input:
+        forward = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.forward.bw"), sample=SAMPLES),
+        reverse = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.reverse.bw"), sample=SAMPLES),
+        regions="annotations/hg38/repeatmasker/hg38.ERVs.Info_grepv_R_concat_stranded.bed"
+    output:
+        positive_sr = os.path.join(WD, "deeptools/FL_ERVs/FL_ERVs_positive_sr.mtx"),
+        negative_sr = os.path.join(WD, "deeptools/FL_ERVs/FL_ERVs_negative_sr.mtx")
+    shell:
+        """
+        awk '{{if($6 == "+"){{print $0}}}}' OFS="\t" {input.regions} > ervs_positive.bed
+        awk '{{if($6 == "-"){{print $0}}}}' OFS="\t" {input.regions} > ervs_negative.bed
+
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+
+        computeMatrix scale-regions -R ervs_positive.bed -S {input.forward} {input.reverse} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.positive_sr} 
+        computeMatrix scale-regions -R ervs_negative.bed -S {input.reverse} {input.forward} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.negative_sr} 
+
+        module purge
+        """
+
+rule matrix_FL_HERVH:
+    input:
+        forward = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.forward.bw"), sample=SAMPLES),
+        reverse = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.reverse.bw"), sample=SAMPLES),
+        regions= "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR7_HERVH.bed" 
+    output:
+        positive_sr = os.path.join(WD, "deeptools/FL_HERVH/FL_HERVH_positive_sr.mtx"),
+        negative_sr = os.path.join(WD, "deeptools/FL_HERVH/FL_HERVH_negative_sr.mtx")
+    shell:
+        """
+        awk '{{if($6 == "+"){{print $0}}}}' OFS="\t" {input.regions} > hervh_positive.bed
+        awk '{{if($6 == "-"){{print $0}}}}' OFS="\t" {input.regions} > hervh_negative.bed
+
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+
+        computeMatrix scale-regions -R hervh_positive.bed -S {input.forward} {input.reverse} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.positive_sr} 
+        computeMatrix scale-regions -R hervh_negative.bed -S {input.reverse} {input.forward} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.negative_sr} 
+
+        module purge
+        """
+
+rule matrix_FL_HERVK:
+    input:
+        forward = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.forward.bw"), sample=SAMPLES),
+        reverse = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.reverse.bw"), sample=SAMPLES),
+        regions= "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR5Hs_HERVK.bed" 
+    output:
+        positive_sr = os.path.join(WD, "deeptools/FL_HERVK/FL_HERVK_positive_sr.mtx"),
+        negative_sr = os.path.join(WD, "deeptools/FL_HERVK/FL_HERVK_negative_sr.mtx")
+    shell:
+        """
+        awk '{{if($6 == "+"){{print $0}}}}' OFS="\t" {input.regions} > hervk_positive.bed
+        awk '{{if($6 == "-"){{print $0}}}}' OFS="\t" {input.regions} > hervk_negative.bed
+
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+
+        computeMatrix scale-regions -R hervk_positive.bed -S {input.forward} {input.reverse} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.positive_sr} 
+        computeMatrix scale-regions -R hervk_negative.bed -S {input.reverse} {input.forward} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.negative_sr} 
+
+        module purge
+        """
+
+rule matrix_FL_HERVW:
+    input:
+        forward = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.forward.bw"), sample=SAMPLES),
+        reverse = expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.reverse.bw"), sample=SAMPLES),
+        regions= "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR17_HERV17.bed"
+    output:
+        positive_sr = os.path.join(WD, "deeptools/FL_HERVW/FL_HERVW_positive_sr.mtx"),
+        negative_sr = os.path.join(WD, "deeptools/FL_HERVW/FL_HERVW_negative_sr.mtx")
+    shell:
+        """
+        awk '{{if($6 == "+"){{print $0}}}}' OFS="\t" {input.regions} > hervw_positive.bed
+        awk '{{if($6 == "-"){{print $0}}}}' OFS="\t" {input.regions} > hervw_negative.bed
+
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+
+        computeMatrix scale-regions -R hervw_positive.bed -S {input.forward} {input.reverse} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.positive_sr} 
+        computeMatrix scale-regions -R hervw_negative.bed -S {input.reverse} {input.forward} -b 3000 -a 3000 --regionBodyLength 9500 -o {output.negative_sr} 
+
+        module purge
+        """
+
+rule FL_HERVK_HERVH_HERVW_quantification:
+    input:
+        HERVH = "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR7_HERVH.gtf",
+        HERVK = "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR5Hs_HERVK.gtf",
+        HERVW = "jakobsson_meat_and_potatoes/resources/asap/hg38_ERVs_prediction_intersect_unique_LTR17_HERV17.gtf",
+        samples=expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam"), sample=SAMPLES)
+    output:
+        csv = os.path.join(WD, "TEcounts/unique/FL_HERVH_HERVK_HERVW_count_matrix_2.csv"),
+        FL_HERVH_HERVK_HERVW = "hg38_ERVs_prediction_intersect_unique_LTR7_HERVH_LTR5Hs_HERVK_LTR17_HERV17.gtf"
+    shell:
+        """
+        ml GCC/7.3.0-2.30  OpenMPI/3.1.1
+        ml Subread/1.6.3
+
+        cat {input.HERVH} {input.HERVK} {input.HERVW} | sort | uniq > {output.FL_HERVH_HERVK_HERVW}
+
+        featureCounts -p -s 2 -F GTF -g transcript_id -a {output.FL_HERVH_HERVK_HERVW} -o {output.csv} {input.samples}
+
+        module purge
+        """
+
+rule FL_HERV_quantification:
+    input:
+        HERV = "CTG_JGJSeq149_150_152/TBI/src/hg38_HERVs_prediction.gtf",
+        samples=expand(os.path.join(WD, "map/unique/{sample}/{sample}_Aligned.sortedByCoord.out.bam"), sample=SAMPLES)
+    output:
+        csv = os.path.join(WD, "TEcounts/unique/FL_HERV_count_matrix_2.csv")
+    shell:
+        """
+        ml GCC/7.3.0-2.30  OpenMPI/3.1.1
+        ml Subread/1.6.3
+
+        featureCounts -p -s 2 -F GTF -g transcript_id -a {input.HERV} -o {output.csv} {input.samples}
+
+        module purge
+        """
