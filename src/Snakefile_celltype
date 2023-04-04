@@ -1,0 +1,72 @@
+# -*- coding: utf-8 -*-
+
+# lunarc configuration file
+# configuration file with sample list (ya# ml list)
+
+import os
+
+WD = "TBI/03.05.22/"
+configfile: os.path.join(WD, "src/config_files/config.yaml")
+
+CLUSTER = config["clusters"]
+cluster_sizes = {i : 1e+7/sum(1 for line in open("../3_combinedUMAP_perCluster/" + i + ".tsv")) for i in config["clusters"]}
+config.update(cluster_sizes)
+
+# Run as:
+# snakemake -j 5 --cluster-config TBI/03.05.22/src/config_files/lunarc_config.json --cluster "sbatch -A {cluster.account} -p {cluster.partition} --tasks-per-node {cluster.tasks-per-node}  -t {cluster.time} -o {cluster.output} -e {cluster.error} -J {cluster.job-name} -N {cluster.nodes}" --latency-wait 60
+
+rule all:
+    input:
+        expand(os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.forward.bw"), cluster=CLUSTER)
+
+
+rule indexing:
+    input:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam")
+    output:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam.bai")
+    shell:
+        """
+        ml GCC/7.3.0-2.30 SAMtools/1.9        
+        samtools index -b {input}
+
+        module purge
+        """
+
+rule bigwig:
+    input:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam"),    
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam.bai"),
+    output:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bw")
+    params:
+        cluster_size = lambda wildcards: config[wildcards.cluster]
+    shell:
+        """
+        module purge
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3
+        ml Python/3.5.2
+            
+        bamCoverage --scaleFactor {params.cluster_size} -b {input[0]} -o {output}
+
+        module purge
+        """
+
+rule filterStrand:
+    input:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam"),
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.bam.bai")
+    output:
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.forward.bw"),
+        os.path.join(WD, "3_combinedUMAP_perCluster/clusterPipeline_per_condition/map_cluster/unique/{cluster}_Aligned.sortedByCoord.out.reverse.bw")
+    params:
+        cluster_size = lambda wildcards: config[wildcards.cluster]
+    shell:
+        """
+        ml GCC/5.4.0-2.26  OpenMPI/1.10.3 Python/3.5.2
+        
+        # bamCoverage filterRNAstrand assumes a standard dUTP-based library preparation (that is, –filterRNAstrand=forward keeps minus-strand reads, which originally came from genes on the forward strand using a dUTP-based method). Since 10x libraries are not dUTP (-s 2) but forwardly sequence (-s 1), I've assigned what comes out here as "forward" to the reverse transcription file and viceversa.
+        bamCoverage --scaleFactor {params.cluster_size} --filterRNAstrand forward -b {input[0]} -o {output[1]} # Reverse transcription
+        bamCoverage --scaleFactor {params.cluster_size} --filterRNAstrand reverse -b {input[0]} -o {output[0]} # Forward transcription
+        module purge
+        """
