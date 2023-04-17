@@ -1,0 +1,305 @@
+---
+title: "Glia progenitor cells - IFN gamma response"
+author: "Raquel Garza"
+output:
+  html_document:
+    code_folding: show
+    df_print: paged
+---
+
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '/Volumes/MyPassport/CTG_JGJSeq222_2023_049_bulkRNASeq_copenhagen/')
+```
+
+## Some functions
+Click code to unfold
+```{r class.source = 'fold-hide'}
+## getSignName ##
+# Get significantly different gene names. 
+# Taken from source code of the package deseqAbstraction which is no longer available on github.
+# Credits to Per L. Brattås
+# Parameters:
+# x = results object from deseq
+# p = padj threshold for significance
+# l = log2FC threshold for significance
+getSignName <- function(x,p,l=0) {
+  up <- x[!is.na(x$padj) & x$padj < p & x$log2FoldChange > l,]
+  down <- x[!is.na(x$padj) & x$padj < p & x$log2FoldChange < -l,]
+  return(list(up=rownames(up),down=rownames(down)))
+}
+## getAverage ##
+# Get average expression (normalized by median of ratios) of each of the conditions in a deseq object.
+# Taken from source code of the package deseqAbstraction which is no longer available on github.
+# Credits to Per L. Brattås
+# Parameters:
+# dds = deseq object
+getAverage <- function(dds) {
+  baseMeanPerLvl <- sapply( levels(dds$condition), function(lvl) rowMeans( counts(dds,normalized=TRUE)[,dds$condition == lvl] ) )
+  baseSDPerLvl <- sapply( levels(dds$condition), function(lvl) apply( counts(dds,normalized=TRUE)[,dds$condition == lvl],1,sd ) )
+  colnames(baseSDPerLvl) <- paste("st.dev:",colnames(baseSDPerLvl),sep="")
+  return(list(Mean=baseMeanPerLvl,SD=baseSDPerLvl))
+}
+
+meanPlot_cus <- function(exp,test,c1 = "condition 1",c2 = "condition 2",p=.05,l=0,id=F, ttl="", 
+                         repel=TRUE, col1="firebrick3", col2="steelblue4", col3="black", highlights=NA, max.overlaps = 5){
+  sign <- getSignName(x = test,p = p,l = l)
+  u <- sign$up
+  d <- sign$down
+  
+  #color up and down sign..
+  colVec <- ifelse(test = (rownames(exp) %in% u),
+                   yes = col1,
+                   no = ifelse(test = (rownames(exp) %in% d),
+                               yes = col2, no =col3))
+  colVec[is.na(colVec)] <- "steelblue" ## if NA make sure it's not counted as <p
+  #size of points
+  cexVec <- ifelse(test = (rownames(exp) %in% u),
+                   yes = 0.35,
+                   no = ifelse(test = (rownames(exp) %in% d),
+                               yes = 0.35, no = 0.3))
+  
+  exp_log <- as.data.frame(log2(exp[,c(c1, c2)]))
+  exp_log$Name <- rownames(exp_log)
+  
+  exp_log$reg <- factor(ifelse(exp_log$Name %in% u, paste('upregulated in ', c1, ' (', length(u), ')', sep =''),
+                               ifelse(exp_log$Name %in% d, paste('downregulated in ', c1,' (', length(d), ')', sep =''), paste('not significant', ' (', (nrow(test) - length(u) - length(d)), ')', sep=''))))
+  
+  library(ggrepel)
+  if(repel == TRUE){
+    plt <- ggplot(exp_log, aes(x=get(c2), y=get(c1), label=Name, color=reg)) + geom_point(aes(size=cexVec))+ scale_color_manual(values=c(col2, col3, col1))+ scale_size_continuous(range=c(1,2), guide="none")+ geom_text_repel(data = subset(exp_log, Name %in% u | Name %in% d), direction = "y", nudge_y = 0.4, nudge_x = -0.5, max.overlaps = max.overlaps)
+  }
+  else{
+    plt <- ggplot(exp_log, aes(x=get(c2), y=get(c1), color=reg)) + geom_point(aes(size=cexVec))+ scale_color_manual(values=c(col2, col3, col1))+ scale_size_continuous(range=c(1,2), guide="none")
+  }
+  plt <- plt + labs(x=paste("log2(mean ",c2,")",sep=""), 
+                    y=paste("log2(mean ",c1,")",sep=""),
+                    title=paste(ttl, paste(c1," vs. ",c2,sep=""), sep = ': '),
+                    subtitle=paste("p-adj < ",p,", log2(fc) > ",l,sep=""))+theme(
+                      plot.title = element_text( size=14, face="bold"),  panel.grid.major = element_line(colour="white"),
+                      panel.grid.minor = element_line(colour="white"), panel.background = element_rect(fill = "white",
+                                                                                                       colour = "white",
+                                                                                                       size = 0.5, linetype = "solid"),
+                      axis.line = element_line(size = 0.5, linetype = "solid",
+                                               colour = "black"), 
+                      legend.title=element_blank()) 
+  
+  
+  if(id==T) {
+    
+    identify(log2(exp[,1]),log2(exp[,2]),labels = rownames(exp))
+    
+  }
+  
+  if(!is.na(highlights)){
+    plt <- plt + geom_point(data=exp_log[highlights,], aes(x=get(c2), y=get(c1)), colour="springgreen3", size=5, shape=1, stroke=2)
+  }
+  return(plt)
+  
+}
+```
+
+## Gene DEA and normalization
+```{r}
+library(data.table)
+library(stringr)
+library(openxlsx)
+library(DESeq2)
+library(ggplot2)
+library(EnhancedVolcano)
+library(ggpubr)
+
+gene_counts <- fread("gene_counts/unique/gene_count_matrix_2.csv", data.table = F)
+colnames(gene_counts)[7:ncol(gene_counts)] <- sapply(str_split(colnames(gene_counts)[7:ncol(gene_counts)], "/"), `[[`, 8)
+rownames(gene_counts) <- gene_counts$Geneid
+
+coldata <- read.xlsx("sample_sheet.xlsx")
+rownames(coldata) <- coldata$sample
+
+coldata_conditions <- split(coldata, f = paste(coldata$celltype, coldata$condition, sep="_"))
+coldata_IFNgamma <- rbind(coldata_conditions$vMB_astrocytes_IFNgamma, coldata_conditions$vMB_astrocytes_NT)
+
+gene_dds <- DESeqDataSetFromMatrix(gene_counts[,rownames(coldata_IFNgamma)], coldata_IFNgamma, design =  ~ condition)
+gene_dds$condition <- relevel(gene_dds$condition, "NT")
+gene_dds <- DESeq(gene_dds)
+treatment <- unique(coldata_IFNgamma$condition)[which(unique(coldata_IFNgamma$condition) != "NT")]
+gene_res <- lfcShrink(gene_dds, paste("condition_",treatment,"_vs_NT", sep=""))
+gene_vst <- varianceStabilizingTransformation(gene_dds)
+
+gene_vst_df <- as.data.frame(assay(gene_vst))
+gene_res_df <- as.data.frame(gene_res)
+gene_res_df$gene_name <- rownames(gene_res_df)
+
+plotPCA(gene_vst) + ggmin::theme_powerpoint() + ggtitle("GPC IFNgamma") + lims(y=c(-20,20)) + labs(colour="Treatment")
+```
+
+## Astrocytes and microglia markers
+```{r}
+markers <- unique(c("GFAP", "VIM","SLC1A3", "HEPACAM", "AQP4", "EGFR", "NES", "OLIG1", "OLIG2", "TAGLN2", "CRYAB", "FBXO32", "TNC", "FAM107A", "HOPX", "ID3", "EGFR","ADM", "ETV4", "METTL7B", "OLIG1", "OLIG2", "PDGFRA", "CSPG4", "PCDH15", "SOX10", "MYRF", "MBP"))
+
+library(pheatmap)
+biomarkers_count_norm <- gene_vst_df[markers, rownames(coldata_IFNgamma)]  
+coldata_IFNgamma <- coldata_IFNgamma[order(coldata_IFNgamma$condition),]
+col.pal <- colorRampPalette(colors = c("lightgrey", "white", "#2d518a"))(60)
+pheatmap(biomarkers_count_norm[markers, rownames(coldata_IFNgamma)],  cluster_rows = T, treeheight_row = 0, cluster_cols = F, scale="column", color = col.pal,
+                                             annotation_col = coldata_IFNgamma[,c("condition"), drop=F], border_color = NA, show_colnames = F, show_rownames = T)
+```
+
+
+## Gene set enrichment analysis (GSEA)
+```{r}
+set.seed(7)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(openxlsx)
+
+genelist <- gene_res_df[,c("log2FoldChange", "gene_name"), drop=F]  
+genelist <- genelist[order(genelist$log2FoldChange, decreasing = T),]
+genelist_FC <- genelist$log2FoldChange
+names(genelist_FC) <- genelist$gene_name
+
+# gse <- gseGO(geneList=sort(genelist_FC, decreasing = T), 
+#                            ont ="ALL", 
+#                            keyType = "SYMBOL", 
+#                            minGSSize = 3, 
+#                            maxGSSize = 800, 
+#                            pvalueCutoff = 0.05,
+#                            verbose = TRUE, 
+#                            seed = TRUE,
+#                            OrgDb = org.Hs.eg.db, 
+#                            pAdjustMethod = "BH")
+
+gse <- read.xlsx("/Volumes/MyPassport/TBI/03.05.22/tables/GO_overrepresentation/seed_7/GSEA_GPC_IFNgamma.xlsx")
+patterns <- "interferon|virus|inflam|innate immune|adaptive|toll-like|MHC"
+gse <- gse[which(grepl(patterns, gse$Description) & gse$ONTOLOGY == "BP"),]
+gse$sign <- ifelse(gse$enrichmentScore > 0, "Activated", "Supressed")
+gse$num_genes <- sapply(str_split(gse$core_enrichment, "/"), length)
+gse$gene_ratio <- gse$num_genes / gse$setSize
+
+gse <- gse[which(gse$Description %in% c("type III interferon production", 
+                                        "response to type I interferon", 
+                                        "positive regulation of MHC class I biosynthetic process",
+                                        "response to interferon-gamma", 
+                                        "defense response to virus", 
+                                        "toll-like receptor signaling pathway", 
+                                        "interferon-gamma production", 
+                                        "adaptive immune response", 
+                                        "inflammatory response", 
+                                        "innate immune response", 
+                                        "cytokine production involved in inflammatory response")),]
+gse$Description <- factor(gse$Description, levels = gse[order(gse$gene_ratio),"Description"])
+
+ggplot(gse, aes(x=Description, y=gene_ratio, size = num_genes, fill = p.adjust)) + geom_point(shape=21, colour="lightgrey") + facet_wrap(.~sign) + coord_flip() + theme_pubr(legend = "right", border = T) + labs(x="", fill="Padj", y = "Gene ratio", size = "Num genes") + scale_fill_gradientn(colors = c("firebrick1", "gray94")) + scale_size_continuous(range = c(2,8)) + 
+  theme(axis.text.y = element_text(size=10), strip.text.x = element_text(size = 10),axis.text.x = element_text(size=10),legend.text = element_text(size=10),legend.title = element_text(size=10)) 
+```
+
+## Interferon related genes 
+Here we plot innate immune related genes which we have previously found to be upregulated in TBI oligodendroglia
+```{r}
+ifn_genes <- c("GSN", "PARP14", "STAT1", "NLRC5", "PARP9", "B2M", "GBP2", "GBP1", "CAMK2D", "CD47", "IRF1", "SP100", "STAT2", "DDX60", "TRIM56", "IFI16", "ISG20", "SRPK2", "STX8", "ERAP1", "HLA-C", "PSMB9", "HLA-A", "BCL6", "SOX2", "AKAP6", "SLC27A1", "PTPN12", "ARID5B", "HSP90B1", "STAT3", "PTPN13", "FOXO1", "CTBP2", "PTPN9", "VRK2", "HDAC4", "GIPC1", "NRP2", "BACE2", "APOL2", "TPST1", "LDLR", "LGALS3BP", "ADGRE5", "NEAT1" )
+
+ifn_count_norm <- gene_vst_df[ifn_genes, rownames(coldata_IFNgamma)]  
+coldata_IFNgamma <- coldata_IFNgamma[order(coldata_IFNgamma$condition),]
+
+# col.pal <- colorRampPalette(colors = c("lightgrey", "white", "#2d518a"))(60)
+pheatmap(ifn_count_norm[ifn_genes, rownames(coldata_IFNgamma)], scale="row", cluster_rows = F, treeheight_row = 0, cluster_cols = F, annotation_col = coldata_IFNgamma[,c("condition"), drop=F], border_color = NA, show_colnames = F, show_rownames = T, color = col.pal)
+```
+
+## TE subfamily expression
+LTR upregulation
+```{r}
+path <- "TEcounts/multiple/"
+files <- list.files(path)
+
+for(i in 1:length(files)){
+  tmp <- fread(paste(path, files[i], sep=""), data.table = F)
+  colnames(tmp)[ncol(tmp)] <- sapply(str_split(colnames(tmp)[ncol(tmp)], "/"), `[[`, 8)
+  if(i == 1){
+    TEfamcounts <- tmp
+  }else{
+    TEfamcounts <- merge(TEfamcounts, tmp, by="gene/TE")
+  }
+}
+
+TEfamcounts <- TEfamcounts[which(!startsWith(TEfamcounts$`gene/TE`, "ENS")),]
+rownames(TEfamcounts) <- TEfamcounts$`gene/TE`
+
+TEfam_dds <- DESeqDataSetFromMatrix(TEfamcounts[,rownames(coldata_IFNgamma)], coldata_IFNgamma, design =  ~ condition)
+TEfam_dds$condition <- relevel(TEfam_dds$condition, "NT")
+TEfam_dds <- DESeq(TEfam_dds)
+treatment <- unique(coldata_IFNgamma$condition)[which(unique(coldata_IFNgamma$condition) != "NT")]
+TEfam_res <- lfcShrink(TEfam_dds, paste("condition_",treatment,"_vs_NT", sep=""))
+TEfam_res_df <- as.data.frame(TEfam_res)
+TEfam_res_df$TEfam <- rownames(TEfam_res_df)
+TEfam_exp <- getAverage(dds = TEfam_dds)
+
+EnhancedVolcano(TEfam_res_df, lab = NA,  x = 'log2FoldChange', y = 'padj', pCutoff = 0.05, FCcutoff = 1, max.overlaps = Inf, drawConnectors = T, pointSize = 1, title = "GPC IFNgamma")
+
+meanPlot_cus(exp = TEfam_exp$Mean, test = TEfam_res, c1 = "IFNgamma", c2 = "NT", repel = F, ttl = "Astrocytes TE DEA", l = 1)
+
+TEfam_res_df_GPC_IFNgamma_LTR <- TEfam_res_df[which(TEfam_res_df$padj < 0.05 & TEfam_res_df$log2FoldChange > 1 & grepl("LTR", TEfam_res_df$TEfam)),]
+TEfam_res_df_GPC_IFNgamma_LTR$TEfam <- sapply(str_split(TEfam_res_df_GPC_IFNgamma_LTR$TEfam, ":"), `[[`, 1)
+TEfam_res_df_GPC_IFNgamma_LTR$TEfam <- factor(TEfam_res_df_GPC_IFNgamma_LTR$TEfam, levels = TEfam_res_df_GPC_IFNgamma_LTR[order(TEfam_res_df_GPC_IFNgamma_LTR$log2FoldChange, decreasing = F),"TEfam"])
+
+ggplot(TEfam_res_df_GPC_IFNgamma_LTR, aes(x=log2FoldChange, y=TEfam))+ geom_bar(stat="identity") + labs(y="") + ggmin::theme_powerpoint() + geom_vline(xintercept = 0)
+```
+
+
+## ERV analysis (unique mapping)
+```{r}
+ERVcounts <- fread("TEcounts/unique/ERV_count_matrix_2.csv", data.table = F)
+colnames(ERVcounts)[7:ncol(ERVcounts)] <- sapply(str_split(colnames(ERVcounts)[7:ncol(ERVcounts)], "/"), `[[`, 8)
+rownames(ERVcounts) <- ERVcounts$Geneid
+
+ERV_dds <- DESeqDataSetFromMatrix(ERVcounts[,rownames(coldata_IFNgamma)], coldata_IFNgamma, design =  ~ condition)
+ERV_dds$condition <- relevel(ERV_dds$condition, "NT")
+ERV_dds <- DESeq(ERV_dds)
+treatment <- unique(coldata_IFNgamma$condition)[which(unique(coldata_IFNgamma$condition) != "NT")]
+ERV_res <- lfcShrink(ERV_dds, paste("condition_",treatment,"_vs_NT", sep=""))
+ERV_vst <- varianceStabilizingTransformation(ERV_dds)
+ERV_res_df <- as.data.frame(ERV_res)
+ERV_res_df$id <- rownames(ERV_res_df)
+ERV_vst_df <- as.data.frame(assay(ERV_vst))
+ERV_exp <- getAverage(dds = ERV_dds)
+
+library(EnhancedVolcano)
+EnhancedVolcano(ERV_res_df, lab = NA,  x = 'log2FoldChange', y = 'padj', pCutoff = 0.05, FCcutoff = 1, pointSize = 1, title = "GPC IFNgamma")
+meanPlot_cus(exp = ERV_exp$Mean, 
+             test = ERV_res, 
+             c1 = "IFNgamma", c2 = "NT", repel = F, ttl = "Astrocytes TE DEA", l = 1, col2 = "black", col3 = "firebrick")
+
+# Boxplots ----
+rownames(ERVcounts) <- ERVcounts$Geneid
+ERVcounts_IFNgamma <- ERVcounts[,names(gene_dds$sizeFactor)]
+ERVcounts_IFNgamma[] <- mapply('/', ERVcounts_IFNgamma[,names(gene_dds$sizeFactor)], gene_dds$sizeFactor)
+
+ERVcounts_IFNgamma_upreg <- ERVcounts_IFNgamma[rownames(ERV_res[which(ERV_res$padj < 0.05 & ERV_res$log2FoldChange > 1),]),]
+ERVcounts_IFNgamma_upreg$herv_id <- rownames(ERVcounts_IFNgamma_upreg)
+ERVcounts_IFNgamma_upreg_melt <- reshape2::melt(ERVcounts_IFNgamma_upreg, by=list(ERVcounts_IFNgamma_upreg$herv_id))
+ERVcounts_IFNgamma_upreg_melt <- merge(ERVcounts_IFNgamma_upreg_melt, coldata_IFNgamma, by.x="variable", by.y="sample")
+
+padj_genes <- ERV_res_df[rownames(ERVcounts_IFNgamma_upreg), "padj", drop=F]
+padj_genes$group1 <- "NT"
+padj_genes$group2 <- "IFNgamma"
+padj_genes$pvalue <- ifelse(padj_genes$padj > 0.05 | is.na(padj_genes$padj), "n.s.", format(padj_genes$padj, digits = 2))
+padj_genes_split <- split(x = padj_genes, f = rownames(padj_genes))
+
+ERVcounts_IFNgamma_upreg_melt <- merge(ERVcounts_IFNgamma_upreg_melt, as.data.frame(padj_genes), by.y="row.names", by.x="herv_id")
+ERVcounts_IFNgamma_upreg_melt[which(duplicated(ERVcounts_IFNgamma_upreg_melt$herv_id)),"pvalue"] <- NA
+ERVcounts_IFNgamma_upreg_melt_list <- split(ERVcounts_IFNgamma_upreg_melt, f = ERVcounts_IFNgamma_upreg_melt$herv_id)
+library(ggpubr)
+ERVcounts_IFNgamma_upreg_plots <- list()
+for(herv in names(ERVcounts_IFNgamma_upreg_melt_list)){
+  ERVcounts_IFNgamma_upreg_melt_list[[herv]]$condition <- factor(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$condition, levels = c("NT", "IFNgamma"))
+  ERVcounts_IFNgamma_upreg_plots[[herv]] <- ggplot(ERVcounts_IFNgamma_upreg_melt_list[[herv]], aes(x=condition, y=value)) + geom_boxplot() + 
+  geom_jitter(width = 0.15, alpha=0.5)  + theme_classic() + 
+  scale_fill_manual(values = c("IFNgamma" = "#92312d", "NT" = "#bcbcbc")) + labs(x="", y="Median of ratios", fill = "") +
+  stat_pvalue_manual(as.data.frame(padj_genes_split[[herv]]), y.position = max(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$value)+sd(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$value), label = "pvalue") + 
+  ggtitle(herv) + lims(y = c(0-(sd(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$value)/4),  max(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$value)+2*sd(ERVcounts_IFNgamma_upreg_melt_list[[herv]]$value)))
+
+} 
+
+ggarrange(plotlist = ERVcounts_IFNgamma_upreg_plots, ncol=4, nrow = 2)
+```
+
+
