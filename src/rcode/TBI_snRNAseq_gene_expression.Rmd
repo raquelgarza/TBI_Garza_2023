@@ -44,8 +44,6 @@ control_samples <- c("TBI_HuBrainCTL_Nuclei501F_F", "TBI_HuBrainCTL_Nuclei501T_T
 
 ### Some relevant markers
 ```{r}
-DotPlot(tbi_seurat,  features=c("MAP2", "DCX", "RBFOX1", "GRIN1", "HS3ST2", "GAD1", "GAD2", "CALB2", "CNR1", "GFAP", "AQP4", "GJA1", "SLC1A3", "PLP1", "MOG", "COL9A1", "VCAN", "PDGFRA", "P2RY12", "FYB1")) + coord_flip()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(x="")
-
 FeaturePlot(tbi_seurat, c("RBFOX3", "GAD1", "GFAP", "PLP1", "VCAN", "FYB1"), ncol=3, cols = c("lightgrey", "red"))
 ```
 
@@ -86,6 +84,17 @@ DimPlot(tbi_seurat, group.by = "celltypes",cols = c("Excitatory Neurons" = "#6d6
                                "Microglia" = "#e8cc4d",
                                "Endothelial" = "#e3a94b",
                                "?" = "#c2831d"), label = T, label.box = T,  label.color = "white") + ggtitle("")
+
+DotPlot(tbi_seurat,  features=c("DCX", "RBFOX1", "GRIN1", "HS3ST2", 
+                                "GAD1", "GAD2", "CALB2", "CNR1", 
+                                "GFAP", "AQP4", "GJA1", "SLC1A3", 
+                                "PLP1", "MOG", "MBP", "PMP2",
+                                "COL9A1", "COL6A1", "VCAN", "PDGFRA", 
+                                "P2RY12", "FYB1", "ITGAX", "CTSS", "C1QB",
+                                "BSG", "FLT1", "LUM", "TPM1"), group.by = "celltypes") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(x="")
+
+write.table(colnames(subset(tbi_seurat, celltypes == "OPC")), "/Volumes/MyPassport/TBI/manuscript/August2023/OPCs_barcodes.tsv", quote = F, col.names = F, row.names = F)
+write.table(colnames(subset(tbi_seurat, celltypes == "Oligodendrocytes")), "/Volumes/MyPassport/TBI/manuscript/August2023/oligos_barcodes.tsv", quote = F, col.names = F, row.names = F)
 ```
 
 
@@ -226,7 +235,6 @@ ggplot(ciita, aes(x=UMAP_1, y=UMAP_2, colour=(CIITA))) + geom_point(size=0.5, al
 
 ```
 
-
 ### Annotate time post injury
 
 Cell type composition 
@@ -243,6 +251,66 @@ rownames(time_sample) <- time_sample$barcode
 tbi_seurat <- AddMetaData(tbi_seurat, metadata = time_sample[,"Time_Post_Injury", drop=F], col.name = "time")
 FeaturePlot(subset(tbi_seurat, condition == "TBI"), "time")
 ```
+
+```{r}
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/violin_per_sample_stat_ifn_parp.pdf", height = 4, width = 20)
+VlnPlot(subset(tbi_seurat, celltypes == "Oligodendrocytes"), c("STAT1", "STAT2", "IFI16", "PARP9"), sort = "time", group.by = "condition", split.by = "sample", ncol=4) &
+  scale_fill_manual(values = c("MJ_TBI_nr1_LT" = "red", 
+                               "MJ_TBI_nr10_LT" = "blue", 
+                               "MJ_TBI_nr11_LFP" = "green",
+                               "MJ_TBI_nr16_RT" = "orange", 
+                               "MJ_TBI_nr19_RF" = "purple",
+                               "MJ_TBI_nr2_LF" = "black", 
+                               "MJ_TBI_nr20_RF" = "brown", 
+                               "MJ_TBI_nr21_RF" = "grey", 
+                               "MJ_TBI_nr3_RF" = "pink", 
+                               "MJ_TBI_nr6_RT" = "lightgrey",
+                               "MJ_TBI_nr7_LT" = "steelblue", 
+                               "MJ_TBI_nr8_RT" = "yellow", 
+                              "TBI_HuBrainCTL_Nuclei501F_F" ="maroon", 
+                              "TBI_HuBrainCTL_Nuclei501T_T"= "firebrick", 
+                              "TBI_HuBrainCTL_Nuclei502T_T" = "white", 
+                              "TBI_HuBrainCTL_Nuclei529F_F" = "lightblue", 
+                              "TBI_HuBrainCTL_Nuclei529T_T" = "lightgreen"))
+VlnPlot(subset(tbi_seurat, celltypes == "OPC"), c("STAT1", "STAT2", "IFI16", "PARP9"), sort = "time", group.by = "condition", split.by = "sample", ncol=4)&
+  scale_fill_manual(values = c("MJ_TBI_nr1_LT" = "red", 
+                               "MJ_TBI_nr10_LT" = "blue", 
+                               "MJ_TBI_nr11_LFP" = "green",
+                               "MJ_TBI_nr16_RT" = "orange", 
+                               "MJ_TBI_nr19_RF" = "purple",
+                               "MJ_TBI_nr2_LF" = "black", 
+                               "MJ_TBI_nr20_RF" = "brown", 
+                               "MJ_TBI_nr21_RF" = "grey", 
+                               "MJ_TBI_nr3_RF" = "pink", 
+                               "MJ_TBI_nr6_RT" = "lightgrey",
+                               "MJ_TBI_nr7_LT" = "steelblue", 
+                               "MJ_TBI_nr8_RT" = "yellow", 
+                              "TBI_HuBrainCTL_Nuclei501F_F" ="maroon", 
+                              "TBI_HuBrainCTL_Nuclei501T_T"= "firebrick", 
+                              "TBI_HuBrainCTL_Nuclei502T_T" = "white", 
+                              "TBI_HuBrainCTL_Nuclei529F_F" = "lightblue", 
+                              "TBI_HuBrainCTL_Nuclei529T_T" = "lightgreen"))
+VlnPlot(subset(tbi_seurat, celltypes == "OPC"), c("STAT1"), sort = "time", group.by = "condition", split.by = "sample", ncol=4)&
+  scale_fill_manual(values = c("MJ_TBI_nr1_LT" = "red", 
+                               "MJ_TBI_nr10_LT" = "blue", 
+                               "MJ_TBI_nr11_LFP" = "green",
+                               "MJ_TBI_nr16_RT" = "orange", 
+                               "MJ_TBI_nr19_RF" = "purple",
+                               "MJ_TBI_nr2_LF" = "black", 
+                               "MJ_TBI_nr20_RF" = "brown", 
+                               "MJ_TBI_nr21_RF" = "grey", 
+                               "MJ_TBI_nr3_RF" = "pink", 
+                               "MJ_TBI_nr6_RT" = "lightgrey",
+                               "MJ_TBI_nr7_LT" = "steelblue", 
+                               "MJ_TBI_nr8_RT" = "yellow", 
+                              "TBI_HuBrainCTL_Nuclei501F_F" ="maroon", 
+                              "TBI_HuBrainCTL_Nuclei501T_T"= "firebrick", 
+                              "TBI_HuBrainCTL_Nuclei502T_T" = "white", 
+                              "TBI_HuBrainCTL_Nuclei529F_F" = "lightblue", 
+                              "TBI_HuBrainCTL_Nuclei529T_T" = "lightgreen"))
+dev.off()
+```
+
 
 ### Annotate region of injury
 ```{r}
@@ -556,123 +624,3 @@ ggarrange(VlnPlot(subset(tbi_seurat, celltypes == "OPC"), features = c("STAT1"),
           VlnPlot(subset(tbi_seurat, celltypes == "OPC"), features = c("CIITA"), pt.size = 0.1, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")  + geom_text(x=1.5, y=2, label=formatC(padj_genes["CIITA","p_val_adj"], format = "e", digits = 2)),
           VlnPlot(subset(tbi_seurat, celltypes == "OPC"), features = c("IFI16"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")+ geom_text(x=1.5, y=2, label=formatC(padj_genes["IFI16","p_val_adj"], format = "e", digits = 2)), ncol=4, nrow=2)
 ```
-
-<!-- ## From here on is the analysis without Frontal 3 - reviewers comments ### -->
-<!-- ### GSEA - Pooling cell types together -->
-<!-- ```{r collapse=TRUE} -->
-<!-- set.seed(7) -->
-<!-- tbi_wo_MJ_TBI_nr2 <- subset(tbi_seurat, sample != "MJ_TBI_nr2_LF") -->
-
-<!-- tbi_wo_MJ_TBI_nr2 <- SetIdent(tbi_wo_MJ_TBI_nr2, value="celltypes") -->
-<!-- celltypes <- as.character(unique(Idents(tbi_wo_MJ_TBI_nr2))) -->
-<!-- deas_celltype <- sapply(as.character(celltypes), function(x) NULL) -->
-<!-- for(celltype in as.character(celltypes)) deas_celltype[[celltype]] <- FindMarkers(tbi_wo_MJ_TBI_nr2, group.by = "conditions", ident.1 = "TBI", subset.ident = celltype) -->
-<!-- for(celltype in as.character(celltypes)) deas_celltype[[celltype]]$gene <- rownames(deas_celltype[[celltype]]) -->
-<!-- for(celltype in as.character(celltypes)) rownames(deas_celltype[[celltype]]) <- NULL -->
-<!-- for(celltype in as.character(celltypes)) deas_celltype[[celltype]] <- deas_celltype[[celltype]][which(deas_celltype[[celltype]]$p_val_adj < 0.01),] -->
-
-<!-- gses_celltype <- sapply(as.character(celltypes), function(x) NULL) -->
-<!-- for(celltype in as.character(celltypes)) rownames(deas_celltype[[celltype]]) <- deas_celltype[[celltype]]$gene -->
-<!-- gses_celltype$Endothelial <- gse_dotplot(deas_celltype$Endothelial) -->
-<!-- gses_celltype$Interneurons <- gse_dotplot(deas_celltype$Interneurons) -->
-<!-- gses_celltype$`Excitatory Neurons` <- gse_dotplot(deas_celltype$`Excitatory Neurons`) -->
-<!-- gses_celltype$Astrocytes <- gse_dotplot(deas_celltype$Astrocytes) -->
-<!-- gses_celltype$`?` <- gse_dotplot(deas_celltype$`?`) -->
-<!-- gses_celltype$Oligodendrocytes <- gse_dotplot(deas_celltype$Oligodendrocytes) -->
-<!-- gses_celltype$OPC <- gse_dotplot(dea=deas_celltype$OPC) # attempt to select less than one element in OneIndex -->
-<!-- gses_celltype$Microglia <- gse_dotplot(dea=deas_celltype$Microglia) -->
-
-<!-- dotplot(gses_celltype$OPC, showCategory=10, split=".sign") + facet_grid(.~.sign) + ggtitle("OPC") -->
-<!-- dotplot(gses_celltype$Oligodendrocytes, showCategory=10, split=".sign") + facet_grid(.~.sign) + ggtitle("Oligodendrocytes") -->
-<!-- # Save to xlsx -->
-
-<!-- ``` -->
-
-<!-- ### Immune response genes wo Frontal 3 -->
-<!-- ```{r collapse=TRUE } -->
-<!-- tbi_wo_MJ_TBI_nr2 <- ScaleData(tbi_wo_MJ_TBI_nr2, response_genes_oligos$SYMBOL) -->
-
-<!-- tmp <- DoHeatmap(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = response_genes_oligos$SYMBOL) -->
-<!-- tmp_df <- reshape2::dcast(tmp$data[,1:3], formula= Feature~Cell, value.var = "Expression") -->
-<!-- rownames(tmp_df) <- tmp_df$Feature -->
-<!-- tmp_df <- tmp_df[,-1] -->
-<!-- annotation_col <- FetchData(tbi_wo_MJ_TBI_nr2, vars = c("condition", "time", "sample")) -->
-<!-- annotation_col <- annotation_col[order(annotation_col$condition, annotation_col$time),,drop=F] -->
-<!-- annotation_col <- annotation_col[which(rownames(annotation_col) %in% colnames(tmp_df)),, drop=F] -->
-<!-- annotation_col$time <- as.factor(annotation_col$time) -->
-
-<!-- col.pal <- colorRampPalette(colors = c("lightgrey", "white", "#2d518a"))(50)#RColorBrewer::brewer.pal(9, "Reds") -->
-<!-- pheatmap(tmp_df[row_order, rownames(annotation_col)], cluster_cols = F, cluster_rows = F,  show_colnames = F, color = col.pal, annotation_col = annotation_col[,c("time"), drop=F]) -->
-<!-- ``` -->
-
-<!-- ### Gene expression in oligodendrocytes without sample Frontal 3 -->
-<!-- ```{r collapse=TRUE} -->
-<!-- dea_oligos_complete <- FindMarkers(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), group.by = "condition", ident.1 = "TBI", lfcThreshold = 0, min.cells.feature = 1, min.cells.group = 1, min.pct = 0, random.seed = 7) -->
-<!-- dea_oligos_complete$gene_name <- rownames(dea_oligos_complete) -->
-<!-- padj_genes <- rbind(dea_oligos_complete["STAT1", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["STAT2", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["CD47", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["IRF1", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["PARP14", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["NLRC5", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["CIITA", "p_val_adj", drop=F], -->
-<!--                     dea_oligos_complete["IFI6", "p_val_adj", drop=F]) -->
-
-<!-- ggarrange(VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("STAT1"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red") + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["STAT1","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("STAT2"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red") + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["STAT2","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("IRF1"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")  + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["IRF1","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("PARP14"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")  + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["PARP14","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("NLRC5"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")  + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["NLRC5","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("CIITA"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")  + geom_text(aes(x="Control", y=2, label=formatC(padj_genes["CIITA","p_val_adj"], format = "e", digits = 2))), -->
-<!--           VlnPlot(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("IFI6"), pt.size = 0, group.by = "condition") + theme(legend.position = "None") + stat_summary(fun = mean, geom='point', size = 1, color="red")+ geom_text(aes(x="Control", y=2, label=formatC(padj_genes["IFI6","p_val_adj"], format = "e", digits = 2))), ncol=4, nrow=2) -->
-<!-- ``` -->
-
-<!-- ### MHC molecules without sample Frontal 3 -->
-<!-- ```{r collapse=TRUE} -->
-<!-- tmp <- DoHeatmap(subset(tbi_wo_MJ_TBI_nr2, celltypes == "OPC"), features = c("HLA-A", "HLA-B", "HLA-C", "HLA-E", "HLA-F", "HLA-DMA", "HLA-DOB", "HLA-DRA", "HLA-DQB1", "HLA-DPA1")) -->
-<!-- tmp_df <- reshape2::dcast(tmp$data[,1:3], formula= Feature~Cell, value.var = "Expression") -->
-<!-- rownames(tmp_df) <- tmp_df$Feature -->
-<!-- tmp_df <- tmp_df[,-1] -->
-<!-- annotation_col <- FetchData(tbi_wo_MJ_TBI_nr2, vars = c("condition", "time")) -->
-<!-- annotation_col <- annotation_col[order(annotation_col$condition, annotation_col$time),,drop=F] -->
-<!-- annotation_col <- annotation_col[which(rownames(annotation_col) %in% colnames(tmp_df)),, drop=F] -->
-<!-- annotation_col$time <- as.factor(annotation_col$time) -->
-<!-- col.pal <- RColorBrewer::brewer.pal(9, "Reds") -->
-
-<!-- pheatmap(tmp_df[c("HLA-A", "HLA-B", "HLA-C", "HLA-E", "HLA-F", "HLA-DMA", "HLA-DOB", "HLA-DRA", "HLA-DQB1", "HLA-DPA1"), rownames(annotation_col)], cluster_cols = F, cluster_rows = F,  show_colnames = F, color = col.pal, annotation_col = annotation_col) -->
-<!-- ``` -->
-
-<!-- ### MHC regulators  without sample Frontal 3 -->
-<!-- ```{r collapse=TRUE} -->
-<!-- tmp <- DoHeatmap(subset(tbi_wo_MJ_TBI_nr2, celltypes == "Oligodendrocytes"), features = c("MYO1E", "KIF5B", "PIP5K1A", "PSMB8", "PSMB9", "TAP1", "TAP2", "CD86", "CD80", "CD74", "CIITA", "NLRC5")) -->
-<!-- tmp_df <- reshape2::dcast(tmp$data[,1:3], formula= Feature~Cell, value.var = "Expression") -->
-<!-- rownames(tmp_df) <- tmp_df$Feature -->
-<!-- tmp_df <- tmp_df[,-1] -->
-<!-- annotation_col <- FetchData(tbi_wo_MJ_TBI_nr2, vars = c("condition", "time")) -->
-<!-- annotation_col <- annotation_col[order(annotation_col$condition, annotation_col$time),,drop=F] -->
-<!-- annotation_col <- annotation_col[which(rownames(annotation_col) %in% colnames(tmp_df)),, drop=F] -->
-<!-- annotation_col$time <- as.factor(annotation_col$time) -->
-
-<!-- pheatmap(tmp_df[c("MYO1E", "KIF5B", "PIP5K1A", "PSMB8", "PSMB9", "TAP1", "TAP2", "CD86", "CD80", "CD74", "CIITA", "NLRC5"), rownames(annotation_col)], cluster_cols = F, cluster_rows = F,  show_colnames = F, color = col.pal, annotation_col = annotation_col) -->
-<!-- ``` -->
-
-<!-- ### Gene expression without sample Frontal 3 -->
-<!-- ```{r collapse=TRUE} -->
-<!-- stat1_control <- FeaturePlot(subset(tbi_wo_MJ_TBI_nr2, condition == "Control"), features = c("STAT1")) -->
-<!-- stat1_tbi <- FeaturePlot(subset(tbi_wo_MJ_TBI_nr2, condition == "TBI"), features = c("STAT1")) -->
-<!-- stat1_control$data$condition <- "Healthy" -->
-<!-- stat1_tbi$data$condition <- "TBI" -->
-<!-- stat1 <- rbind(stat1_control$data,  -->
-<!--                stat1_tbi$data) -->
-<!-- colnames(stat1)[4] <- "STAT1" -->
-<!-- ggplot(stat1, aes(x=UMAP_1, y=UMAP_2, colour=(STAT1))) + geom_point(size=0.5, alpha=0.5) + facet_wrap(.~condition) + theme_classic() + scale_color_gradient(low = "lightgray", high = "red") + labs(colour="") + theme(text=element_text(size=15)) + ggtitle("STAT1") -->
-
-<!-- stat2_control <- FeaturePlot(subset(tbi_wo_MJ_TBI_nr2, condition == "Control"), features = c("STAT2")) -->
-<!-- stat2_tbi <- FeaturePlot(subset(tbi_wo_MJ_TBI_nr2, condition == "TBI"), features = c("STAT2")) -->
-<!-- stat2_control$data$condition <- "Healthy" -->
-<!-- stat2_tbi$data$condition <- "TBI" -->
-<!-- stat2 <- rbind(stat2_control$data,  -->
-<!--                stat2_tbi$data) -->
-<!-- colnames(stat2)[4] <- "STAT2" -->
-<!-- ggplot(stat2, aes(x=UMAP_1, y=UMAP_2, colour=(STAT2))) + geom_point(size=0.5, alpha=0.5) + facet_wrap(.~condition) + theme_classic() + scale_color_gradient(low = "lightgray", high = "red") + labs(colour="") + theme(text=element_text(size=15)) + ggtitle("STAT2") -->
-<!-- ``` -->
