@@ -51,3 +51,36 @@ for(sample in unique(samples_info_df_melt$orig.ident)) samples_info_plot[[sample
 ggarrange(plotlist = samples_info_plot, ncol=12, nrow=2)
 # dev.off()
 ```
+```{r}
+opcs <- read.table("/Volumes/MyPassport/TBI/manuscript/August2023/OPCs_barcodes.tsv")
+oligos <- read.table("/Volumes/MyPassport/TBI/manuscript/August2023/oligos_barcodes.tsv")
+
+samples_info_df$barcode <- sapply(str_split(rownames(samples_info_df), paste(as.character(samples_info_df$orig.ident), ".", sep="")), `[[`, 2)
+samples_info_df_opcs <- samples_info_df[which(samples_info_df$barcode %in% opcs$V1),]
+samples_info_df_oligos <- samples_info_df[which(samples_info_df$barcode %in% oligos$V1),]
+samples_info_df_melt_opcs <- reshape2::melt(samples_info_df_opcs[,c("orig.ident", "nFeature_RNA", "nCount_RNA", "percent.mt")], by="orig.ident", measure.vars = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+samples_info_df_melt_oligos <- reshape2::melt(samples_info_df_oligos[,c("orig.ident", "nFeature_RNA", "nCount_RNA", "percent.mt")], by="orig.ident", measure.vars = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
+
+samples_info_plot_opcs <- list()
+samples_info_plot_oligos <- list()
+for(sample in unique(samples_info_df_melt_opcs$orig.ident)) samples_info_plot_opcs[[sample]] <- ggplot(samples_info_df_melt_opcs[which(samples_info_df_melt_opcs$variable == "nFeature_RNA" & samples_info_df_melt_opcs$orig.ident == sample),], aes(x=orig.ident, y=value)) + geom_violin() + theme_classic() + geom_point(y= mean(samples_info_df_melt_opcs[which(samples_info_df_melt_opcs$variable == "nFeature_RNA" & samples_info_df_melt_opcs$orig.ident == sample),"value"])) + 
+  geom_hline(linetype = "dashed", colour = "blue", yintercept = 1000) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["lower"])) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["higher"])) + 
+  labs(x="", y="") + lims(y=c(0,10000))
+
+for(sample in unique(samples_info_df_melt_oligos$orig.ident)) samples_info_plot_oligos[[sample]] <- ggplot(samples_info_df_melt_oligos[which(samples_info_df_melt_oligos$variable == "nFeature_RNA" & samples_info_df_melt_oligos$orig.ident == sample),], aes(x=orig.ident, y=value)) + geom_violin() + theme_classic() + geom_point(y= mean(samples_info_df_melt_oligos[which(samples_info_df_melt_oligos$variable == "nFeature_RNA" & samples_info_df_melt_oligos$orig.ident == sample),"value"])) + 
+  geom_hline(linetype = "dashed", colour = "blue", yintercept = 1000) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["lower"])) + 
+  geom_hline(linetype = "dashed", colour = "red", yintercept = as.numeric(attr(scater::isOutlier(samples[[sample]]$nFeature_RNA, nmads=3, type = "both", log=T)["outlier.filter"], "thresholds")["higher"])) + 
+  labs(x="", y="") + lims(y=c(0,10000))
+
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/violin_QC_opcs.pdf", width = 14)
+ggarrange(plotlist = samples_info_plot_opcs, ncol=12, nrow=2)
+ggarrange(plotlist = samples_info_plot_oligos, ncol=12, nrow=2)
+dev.off()
+```
+```{r}
+
+```
+
