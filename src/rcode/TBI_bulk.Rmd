@@ -150,12 +150,17 @@ FL_HERV_dds <- DESeq(FL_HERV_dds)
 FL_HERV_res <- lfcShrink(FL_HERV_dds, coef="condition_TBI_vs_Control", type="apeglm")
 
 FL_HERV_res_df <- as.data.frame(FL_HERV_res)
+FL_HERV_exp <- getAverage(dds = FL_HERV_dds)
+
+meanPlot_cus(exp = FL_HERV_exp$Mean,
+             test = FL_HERV_res_df,
+             c1 = "TBI", c2 = "Control", repel = F, ttl = "TBI ERV DEA", l = 1, p = 0.2) + geom_abline() # this is p adjusted
 
 library(EnhancedVolcano)
 EnhancedVolcano(FL_HERV_res,
   lab = NA, 
   x = 'log2FoldChange', 
-  y = 'pvalue', pCutoff = 0.05, FCcutoff = 1, pointSize = 1, ylim = c(0,5))
+  y = 'pvalue', pCutoff = 0.05, FCcutoff = 1, pointSize = 1, ylim = c(0,5)) # this is p unadjusted
 
 table(FL_HERV_res$pvalue < 0.05 & abs(FL_HERV_res$log2FoldChange) > 1)
 table(FL_HERV_res$pvalue < 0.05 & FL_HERV_res$log2FoldChange < -1)
@@ -192,7 +197,16 @@ for(herv in names(FL_HERVcounts_uniq_norm_upreg_melt_list)) FL_HERVcounts_uniq_n
   ggtitle(herv) + lims(y = c(0,  max(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value)+2*sd(FL_HERVcounts_uniq_norm_upreg_melt_list[[herv]]$value)))
 
 ggarrange(plotlist = FL_HERVcounts_uniq_norm_upreg_plots, ncol=5, nrow = 3)
+names_FL_HERV_upreg <- FL_HERVcounts_uniq[names(FL_HERVcounts_uniq_norm_upreg_plots),c("Chr", "Start", "End", "Strand")]
+names_FL_HERV_upreg$coords <- paste(paste(names_FL_HERV_upreg$Chr, paste(names_FL_HERV_upreg$Start, names_FL_HERV_upreg$End, sep="-"), sep = ":"), " (", names_FL_HERV_upreg$Strand, ")", sep="")
+names_FL_HERV_upreg$herv <- rownames(names_FL_HERV_upreg)
+names_FL_HERV_upreg <- split(names_FL_HERV_upreg$coords, f = names_FL_HERV_upreg$herv)
 
+for(herv in names(FL_HERVcounts_uniq_norm_upreg_plots)) FL_HERVcounts_uniq_norm_upreg_plots[[herv]] <- FL_HERVcounts_uniq_norm_upreg_plots[[herv]] + ggtitle(names_FL_HERV_upreg[[herv]])
+tmp <- FL_HERVcounts_uniq_norm_upreg_plots
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/suppl_fig5a_hervs.pdf", width = 4, height = 15)
+ggarrange(plotlist = FL_HERVcounts_uniq_norm_upreg_plots, ncol=2, nrow = 7)
+dev.off()
 ```
 
 ### Upregulated HERVs - Putative proteins
