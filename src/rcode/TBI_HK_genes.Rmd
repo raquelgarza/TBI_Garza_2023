@@ -1,0 +1,157 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(openxlsx)
+library(data.table)
+hk_genes <- fread("/Volumes/MyPassport/annotations/human/rseqc/hg38.HouseKeepingGenes_gene_names.bed", header = F)
+# hk_genes <- fread("~/Desktop/tissue_category_rna_Any_Detected.tsv", header = T)
+hk_genes <- hk_genes[which(hk_genes$V2 != ""), ]
+hk_genes <- hk_genes$V2
+# hk_genes <- hk_genes$Gene
+oligos_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "oligodendrocytes")
+opc_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "opc")
+micro_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "microglia")
+astro_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "astrocytes")
+en_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "excitatory neurons")
+in_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "interneurons")
+end_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "endothelial")
+unk_dea <- read.xlsx("/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table2_DEA_per_celltype.xlsx", sheet = "unknown")
+
+table(hk_genes %in% oligos_dea$gene)
+table(hk_genes %in% opc_dea$gene)
+table(hk_genes %in% micro_dea$gene)
+table(hk_genes %in% astro_dea$gene)
+table(hk_genes %in% en_dea$gene)
+table(hk_genes %in% in_dea$gene)
+table(hk_genes %in% end_dea$gene)
+table(hk_genes %in% unk_dea$gene)
+```
+
+```{r}
+library(dplyr)
+# Regulatory enzyme
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/polr2a.pdf", height = 3, width = 5)
+gapdh <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "GAPDH", "condition"))
+ggplot(gapdh %>%
+         arrange(GAPDH),
+       aes(x = UMAP_1, y = UMAP_2, color = GAPDH)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("GAPDH") + ggmin::theme_powerpoint()
+# Transcription factor
+tbp <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "TBP", "condition"))
+ggplot(tbp %>%
+         arrange(TBP),
+       aes(x = UMAP_1, y = UMAP_2, color = TBP)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("TBP") + ggmin::theme_powerpoint()
+# Carbohydrate metabolism
+pgk1 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "PGK1", "condition"))
+ggplot(pgk1 %>%
+         arrange(PGK1),
+       aes(x = UMAP_1, y = UMAP_2, color = PGK1)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("PGK1") + ggmin::theme_powerpoint()
+# Kinases/signalling
+ywhaz <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "YWHAZ", "condition"))
+ggplot(ywhaz %>%
+         arrange(YWHAZ),
+       aes(x = UMAP_1, y = UMAP_2, color = YWHAZ)) +
+  geom_point(size=0.5) + facet_wrap(.~condition)+ 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("YWHAZ") + ggmin::theme_powerpoint()
+# Transcription factors
+atf2 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "ATF2", "condition"))
+ggplot(atf2 %>%
+         arrange(ATF2),
+       aes(x = UMAP_1, y = UMAP_2, color = ATF2)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("ATF2") + ggmin::theme_powerpoint()
+# RNA splicing
+pabpn1 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "PABPN1", "condition"))
+ggplot(pabpn1 %>%
+         arrange(PABPN1),
+       aes(x = UMAP_1, y = UMAP_2, color = PABPN1)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("PABPN1") + ggmin::theme_powerpoint()
+# Cytoskeletal
+anxa7 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "ANXA7", "condition"))
+ggplot(anxa7 %>%
+         arrange(ANXA7),
+       aes(x = UMAP_1, y = UMAP_2, color = ANXA7)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("ANXA7") + ggmin::theme_powerpoint()
+# tRNA synthesis
+farsb <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "FARSB", "condition"))
+ggplot(farsb %>%
+         arrange(FARSB),
+       aes(x = UMAP_1, y = UMAP_2, color = FARSB)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("FARSB") + ggmin::theme_powerpoint()
+# translation factors
+eif1 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "EIF1", "condition"))
+ggplot(eif1 %>%
+         arrange(EIF1),
+       aes(x = UMAP_1, y = UMAP_2, color = EIF1)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("EIF1") + ggmin::theme_powerpoint()
+# RNA binding protein
+elavl1 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "ELAVL1", "condition"))
+ggplot(elavl1 %>%
+         arrange(ELAVL1),
+       aes(x = UMAP_1, y = UMAP_2, color = ELAVL1)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("ELAVL1") + ggmin::theme_powerpoint()
+# Ribosomal proteins
+rpl5 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "RPL5", "condition"))
+ggplot(rpl5 %>%
+         arrange(RPL5),
+       aes(x = UMAP_1, y = UMAP_2, color = RPL5)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("RPL5") + ggmin::theme_powerpoint()
+# Pol II - largest subunit
+polr2a <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "POLR2A", "condition"))
+ggplot(polr2a %>%
+         arrange(POLR2A),
+       aes(x = UMAP_1, y = UMAP_2, color = POLR2A)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("POLR2A") + ggmin::theme_powerpoint()
+# Protein processing
+sumo1 <- FetchData(tbi_seurat, c("UMAP_1", "UMAP_2", "SUMO1", "condition"))
+ggplot(sumo1 %>%
+         arrange(SUMO1),
+       aes(x = UMAP_1, y = UMAP_2, color = SUMO1)) +
+  geom_point(size=0.5) + facet_wrap(.~condition) + 
+  scale_colour_gradient(low="lightgrey", high = "red") + ggtitle("SUMO1") + ggmin::theme_powerpoint()
+dev.off()
+tbi_seurat <- ScaleData(tbi_seurat, features = rownames(tbi_seurat))
+hk_tbi <- FetchData(tbi_seurat,  c("SUMO1", "POLR2A", "RPL5", "ELAVL1", "EIF1", "FARSB", "ANXA7", "PABPN1", "ATF2", "YWHAZ", "PGK1", "TBP", "GAPDH", "STAT1", "STAT2", "condition", "celltypes"))
+col_annotation <- hk_tbi[,c("condition", "celltypes"), drop=F]
+col_annotation <- col_annotation[order(col_annotation$celltypes, col_annotation$condition),]
+col_annotation$condition_celltype <- paste(col_annotation$celltypes, col_annotation$condition, sep = "_")
+
+
+hk_tbi_heatmap <- hk_tbi[rownames(col_annotation),-c(ncol(hk_tbi), ncol(hk_tbi)-1)]
+
+library(Pigengene)
+# png("/Volumes/MyPassport/TBI/manuscript/August2023/plots/heatmap_HK.png", height = 4090, width = 4000, res=350)
+pheatmap.type(Data = hk_tbi_heatmap, show_colnames = F,  
+              cluster_rows = F, annRow = col_annotation[,"condition_celltype",drop=F], 
+              scale = "row", gaps_col = which(!duplicated(col_annotation$celltypes))[-1], doTranspose = T,
+              color = rev(brewer.pal(11,"RdBu")))
+# dev.off()
+
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
