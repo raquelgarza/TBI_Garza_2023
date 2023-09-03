@@ -20,8 +20,8 @@ library(RColorBrewer)
 library(Seurat)
 library(stringr)
 
-tbi <- readRDS("3_combinedUMAP_perCluster_QC_loose/new_rds/tbi_per_condition_tbi.rds")
-control <- readRDS("3_combinedUMAP_perCluster_QC_loose/new_rds/tbi_per_condition_control.rds")
+tbi <- readRDS("3_combinedUMAP_perCluster/tbi_per_condition_tbi.rds")
+control <- readRDS("3_combinedUMAP_perCluster/tbi_per_condition_control.rds")
 ```
 
 L1 barplots
@@ -31,8 +31,8 @@ DefaultAssay(tbi) <- "TE_norm_cluster_size"
 DefaultAssay(control) <- "TE_norm_cluster_size"
 
 # Read normalized matrices for both conditions
-control_TE_norm <- fread("3_combinedUMAP_perCluster_QC_loose/clusterPipeline/TE_counts_normalized/multiple/control_TE_norm_cluster_size_matrix.csv", data.table = F)
-tbi_TE_norm <- fread("3_combinedUMAP_perCluster_QC_loose/clusterPipeline/TE_counts_normalized/multiple/tbi_TE_norm_cluster_size_matrix.csv", data.table = F)
+control_TE_norm <- fread("3_combinedUMAP_perCluster/clusterPipeline_per_condition/TE_counts_normalized/multiple/control_TE_norm_cluster_size_matrix.csv", data.table = F)
+tbi_TE_norm <- fread("3_combinedUMAP_perCluster/clusterPipeline_per_condition/TE_counts_normalized/multiple/tbi_TE_norm_cluster_size_matrix.csv", data.table = F)
 
 # Pretty titles for celltypes (we will use this function later in the code)
 celltypes <- c(
@@ -79,9 +79,10 @@ tbi <- AddMetaData(tbi, metadata = celltypes_labeller(FetchData(tbi, "seurat_clu
 control <- AddMetaData(control, metadata = celltypes_labeller(FetchData(control, "seurat_clusters")$seurat_clusters), col.name = "celltypes")
 
 TE_norm <- merge(tbi_TE_norm, control_TE_norm, by="te_id")
-TE_norm$te_subfamily <- sapply(str_split(TE_norm$te_id, ":"), `[[`, 1)
-TE_norm$te_family <- sapply(str_split(TE_norm$te_id, ":"), `[[`, 2)
-TE_norm$te_class <- sapply(str_split(TE_norm$te_id, ":"), `[[`, 3)
+TE_norm$TE <- ifelse(sapply(str_split(TE_norm$te_id, ":"), length) > 1, "TE", "gene")
+TE_norm$te_subfamily <- ifelse(TE_norm$TE == "TE", sapply(str_split(TE_norm$te_id, ":"), `[[`, 1), NA)
+TE_norm$te_family <- ifelse(TE_norm$TE == "TE", sapply(str_split(TE_norm$te_id, ":"), `[[`, 2), NA)
+TE_norm$te_class <- ifelse(TE_norm$TE == "TE", sapply(str_split(TE_norm$te_id, ":"), `[[`, 3), NA)
 
 ```
 
@@ -263,5 +264,83 @@ l1pa2 <- rbind(l1pa2_control$data,
       l1pa2_tbi$data)
 colnames(l1pa2)[4] <- "L1PA2:L1:LINE"
 ggplot(l1pa2, aes(x=UMAP_1, y=UMAP_2, colour=(`L1PA2:L1:LINE`))) + geom_point(size=0.5) + facet_wrap(.~condition) + theme_classic() + scale_color_gradient(low = "lightgray", high = "red") + labs(colour="Cluster expression\n(norm by num cells)") + theme(text=element_text(size=15)) + ggtitle("L1PA2")
+```
+
+```{r}
+IFN_genes <- c("ENSG00000115415.20",
+               "ENSG00000170581.14",
+               "ENSG00000125347.15",
+               "ENSG00000138496.17",
+               "ENSG00000059378.13",
+               "ENSG00000173193.15",
+               "ENSG00000140853.16")
+# LTRs to check melted by condition
+IFN_genes_tbi_control <- rbind(reshape2::melt(control_TE_norm[which(control_TE_norm$te_id %in% IFN_genes) ,c("te_id", paste("tbi_per_condition_control_", as.character(unique(control$seurat_clusters)), sep=""))], by="te_id"),
+                         reshape2::melt(tbi_TE_norm[which(tbi_TE_norm$te_id %in% IFN_genes) ,c("te_id", paste("tbi_per_condition_tbi_", as.character(unique(tbi$seurat_clusters)), sep=""))], by="te_id"))
+# Annotate them by condition, celltype and cluster
+IFN_genes_tbi_control$condition <- ifelse(startsWith(as.character(IFN_genes_tbi_control$variable), "tbi_per_condition_tbi_"), "TBI", "Control")
+IFN_genes_tbi_control$seurat_clusters <- sapply(str_split(IFN_genes_tbi_control$variable, "_"), `[[`, 5)
+IFN_genes_tbi_control <- merge(IFN_genes_tbi_control, unique(FetchData(tbi, c("seurat_clusters", "celltypes"))), by="seurat_clusters")
+
+# Order celltypes and clusters
+IFN_genes_tbi_control$celltypes <- factor(IFN_genes_tbi_control$celltypes, levels = c("Excitatory Neurons", "Interneurons", "?", "Astrocytes", "Oligodendrocytes", "OPC", "Microglia", "Endothelial"))
+IFN_genes_tbi_control$seurat_clusters <- factor(IFN_genes_tbi_control$seurat_clusters, levels = as.character(c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14)))
+
+# Extract only the id
+IFN_genes_tbi_control$te_id <- sapply(str_split(IFN_genes_tbi_control$te_id, ":"), `[[`, 1)
+# Order condition
+IFN_genes_tbi_control$condition <- factor(IFN_genes_tbi_control$condition, c("TBI", "Control"))
+
+# Pretty-fy celltype/cluster labels
+IFN_genes_tbi_control$cluster_celltype <- as.vector(celltypes_labeller(IFN_genes_tbi_control$seurat_clusters))
+IFN_genes_tbi_control$cluster_celltype <- factor(IFN_genes_tbi_control$cluster_celltype, c("(0) Excitatory Neurons",
+                                           "(5) Excitatory Neurons",
+                                           "(6) Excitatory Neurons",
+                                           "(2) Interneurons",
+                                           "(3) Interneurons",
+                                           "(9) Interneurons",
+                                           "(4) Astrocytes",
+                                           "(1) Oligodendrocytes",
+                                           "(7) OPC",
+                                           "(8) Microglia",
+                                           "(13) Endothelial",
+                                           "(14) Endothelial",
+                                           "(10) ?",
+                                           "(11) ?",
+                                           "(12) ?"))
+
+IFN_genes_tbi_control$condition <- factor(IFN_genes_tbi_control$condition, c("Control", "TBI"))
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/IFN_genes_pseudobulk.pdf")
+ggplot(IFN_genes_tbi_control, aes(x=te_id, y=value, fill=condition)) + geom_bar(stat="identity", position = "dodge") + 
+  facet_wrap(.~cluster_celltype, ncol = 3) + theme_classic()+ labs(x="", y="Normalized expression") + 
+  theme(axis.text.x = element_text(size=6, angle = 90, vjust = 0.5, hjust=1))
+dev.off()
+
+
+# Feature plot for STAT1
+stat1_control <- FeaturePlot(control, features="ENSG00000115415.20")
+stat1_tbi <- FeaturePlot(tbi, features="ENSG00000115415.20")
+stat1_control$data$condition <- "Healthy"
+stat1_tbi$data$condition <- "TBI"
+stat1 <- rbind(stat1_control$data, 
+      stat1_tbi$data)
+colnames(stat1)[4] <- "STAT1"
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/STAT1_pseudobulk.pdf", height = 3, width = 6)
+ggplot(stat1, aes(x=UMAP_1, y=UMAP_2, colour=(STAT1))) + geom_point(size=0.5) + facet_wrap(.~condition) + theme_classic() + scale_color_gradient(low = "lightgray", high = "red") + labs(colour="Cluster expression\n(norm by num cells)") + theme(text=element_text(size=15)) + ggtitle("STAT1") + ggmin::theme_powerpoint()
+dev.off()
+
+
+
+# Feature plot for L1PA2
+nlrc5_control <- FeaturePlot(control, features="ENSG00000140853.16")
+nlrc5_tbi <- FeaturePlot(tbi, features="ENSG00000140853.16")
+nlrc5_control$data$condition <- "Healthy"
+nlrc5_tbi$data$condition <- "TBI"
+nlrc5 <- rbind(nlrc5_control$data, 
+      nlrc5_tbi$data)
+colnames(nlrc5)[4] <- "NLRC5"
+pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/NLRC5_pseudobulk.pdf", height = 3, width = 6)
+ggplot(nlrc5, aes(x=UMAP_1, y=UMAP_2, colour=(NLRC5))) + geom_point(size=0.5) + facet_wrap(.~condition) + theme_classic() + scale_color_gradient(low = "lightgray", high = "red") + labs(colour="Cluster expression\n(norm by num cells)") + theme(text=element_text(size=15)) + ggtitle("NLRC5") + ggmin::theme_powerpoint()
+dev.off()
 ```
 
