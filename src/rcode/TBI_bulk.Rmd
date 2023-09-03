@@ -111,8 +111,8 @@ library(ggrepel)
 library(ggpubr)
 
 # Reading gene quantification ----
-counts <- fread("gene_counts/default/gene_count_matrix_2.csv", data.table=F)
-colnames(counts)[7:ncol(counts)] <- sapply(str_split(colnames(counts)[7:ncol(counts)], "/"), `[[`, 8)
+counts <- fread("gene_counts/default/gene_name_count_matrix_2.csv", data.table=F)
+colnames(counts)[7:ncol(counts)] <- sapply(str_split(colnames(counts)[7:ncol(counts)], "/"), `[[`, 9)
 
 coldata <- data.frame(sample= colnames(counts)[7:ncol(counts)])
 coldata$condition <- ifelse(grepl("ctrl", coldata$sample), "Control", "TBI")
@@ -204,9 +204,9 @@ names_FL_HERV_upreg <- split(names_FL_HERV_upreg$coords, f = names_FL_HERV_upreg
 
 for(herv in names(FL_HERVcounts_uniq_norm_upreg_plots)) FL_HERVcounts_uniq_norm_upreg_plots[[herv]] <- FL_HERVcounts_uniq_norm_upreg_plots[[herv]] + ggtitle(names_FL_HERV_upreg[[herv]])
 tmp <- FL_HERVcounts_uniq_norm_upreg_plots
-pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/suppl_fig5a_hervs.pdf", width = 4, height = 15)
+# pdf("/Volumes/MyPassport/TBI/manuscript/August2023/plots/suppl_fig5a_hervs.pdf", width = 4, height = 15)
 ggarrange(plotlist = FL_HERVcounts_uniq_norm_upreg_plots, ncol=2, nrow = 7)
-dev.off()
+# dev.off()
 ```
 
 ### Upregulated HERVs - Putative proteins
@@ -269,7 +269,10 @@ hist(FL_HERVcounts_uniq_upreg$`LTRdiv(%)`, main = "Upregulated HERVs - LTR % of 
 ### How is gene expression nearby affected?
 ```{r}
 gene_res <- lfcShrink(gene_dds, coef="condition_TBI_vs_Control", type="apeglm")
-
+gene_res_df <- as.data.frame(gene_res)
+gene_res_df <- cbind(rownames(gene_res_df), gene_res_df)
+colnames(gene_res_df)[1] <- "gene_name"
+# write.xlsx(gene_res_df, "/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table9_TBI_gene_DEA.xlsx")
 genes_2kb <- fread("data/upregulated_proviruses_2kb_intersect_genes.tab", data.table = F, skip=1, header=F)
 genes_5kb <- fread("data/upregulated_proviruses_5kb_intersect_genes.tab", data.table = F, skip=1, header=F)
 genes_10kb <- fread("data/upregulated_proviruses_10kb_intersect_genes.tab", data.table = F, skip=1, header=F)
@@ -282,16 +285,16 @@ colnames(genes_10kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "ge
 colnames(genes_15kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
 colnames(genes_20kb) <- c("chr", "start", "end", "gene_id", "dot", "strand", "gene_name")
 
-genes_20kb <- genes_20kb[which(!genes_20kb$gene_id %in% genes_15kb$gene_id),]
-genes_15kb <- genes_15kb[which(!genes_15kb$gene_id %in% genes_10kb$gene_id),]
-genes_10kb <- genes_10kb[which(!genes_10kb$gene_id %in% genes_5kb$gene_id),]
-genes_5kb <- genes_5kb[which(!genes_5kb$gene_id %in% genes_2kb$gene_id),]
+genes_20kb <- genes_20kb[which(!genes_20kb$gene_name %in% genes_15kb$gene_name),]
+genes_15kb <- genes_15kb[which(!genes_15kb$gene_name %in% genes_10kb$gene_name),]
+genes_10kb <- genes_10kb[which(!genes_10kb$gene_name %in% genes_5kb$gene_name),]
+genes_5kb <- genes_5kb[which(!genes_5kb$gene_name %in% genes_2kb$gene_name),]
 
-genes_2kb_res <- as.data.frame(gene_res[genes_2kb$gene_id,])
-genes_5kb_res <- as.data.frame(gene_res[genes_5kb$gene_id,])
-genes_10kb_res <- as.data.frame(gene_res[genes_10kb$gene_id,])
-genes_15kb_res <- as.data.frame(gene_res[genes_15kb$gene_id,])
-genes_20kb_res <- as.data.frame(gene_res[genes_20kb$gene_id,])
+genes_2kb_res <- as.data.frame(gene_res[genes_2kb$gene_name,])
+genes_5kb_res <- as.data.frame(gene_res[genes_5kb$gene_name,])
+genes_10kb_res <- as.data.frame(gene_res[genes_10kb$gene_name,])
+genes_15kb_res <- as.data.frame(gene_res[genes_15kb$gene_name,])
+genes_20kb_res <- as.data.frame(gene_res[genes_20kb$gene_name,])
 
 genes_2kb_res$type <- "0-2kb"
 genes_5kb_res$type <- "2-5kb"
@@ -309,4 +312,24 @@ genes_around_upreg_hervs$type <- factor(genes_around_upreg_hervs$type, levels = 
 
 ggplot(genes_around_upreg_hervs, aes(x=type, y=log2FoldChange)) + geom_boxplot() + theme_classic() + labs(x="Distance from upregulated HERV")
 ```
+
+
+<!-- ```{r} -->
+<!-- TEcounts_uniq <- fread("TEcounts/unique/TE_count_matrix_2.csv", data.table=F) -->
+<!-- colnames(TEcounts_uniq)[7:ncol(TEcounts_uniq)] <- sapply(str_split(colnames(TEcounts_uniq)[7:ncol(TEcounts_uniq)], "/"), `[[`, 8) -->
+
+<!-- rownames(TEcounts_uniq) <- TEcounts_uniq$Geneid -->
+<!-- TEcounts_uniq_norm <- TEcounts_uniq[,rownames(coldata)] -->
+<!-- TEcounts_uniq_norm[] <- mapply('/', TEcounts_uniq_norm[,names(gene_dds$sizeFactor)], gene_dds$sizeFactor) -->
+<!-- TE_classification <- fread("/Volumes/MyPassport/annotations/human/repeatmasker/hg38_rmsk_TEtranscripts_classification.tab", data.table = F, header = F) -->
+<!-- colnames(TE_classification) <- c("TE_id", "TE_subfamily", "TE_family", "TE_class") -->
+<!-- TEcounts_uniq_norm <- merge(TEcounts_uniq_norm, TE_classification, by.x="row.names", by.y="TE_id") -->
+<!-- TEcounts_uniq_norm$TE_class <- str_remove_all(string = TEcounts_uniq_norm$TE_class, "\\?") -->
+
+<!-- ltr_tbi <- aggregate(TEcounts_uniq_norm[,coldata$sample], list(TEcounts_uniq_norm$TE_class), FUN=sum) -->
+<!-- rownames(ltr_tbi) <- ltr_tbi$Group.1 -->
+<!-- ltr_tbi <- ltr_tbi[,-1] -->
+
+<!-- pheatmap(ltr_tbi, annotation_col = coldata[,"condition", drop=F], scale = "row", cluster_cols = F) -->
+<!-- ``` -->
 
