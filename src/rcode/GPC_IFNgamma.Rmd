@@ -124,6 +124,10 @@ gene_dds$condition <- relevel(gene_dds$condition, "NT")
 gene_dds <- DESeq(gene_dds)
 treatment <- unique(coldata_IFNgamma$condition)[which(unique(coldata_IFNgamma$condition) != "NT")]
 gene_res <- lfcShrink(gene_dds, paste("condition_",treatment,"_vs_NT", sep=""))
+gene_res_df <- as.data.frame(gene_res)
+gene_res_df <- cbind(rownames(gene_res_df), gene_res_df)
+colnames(gene_res_df)[1] <- "gene_name"
+# write.xlsx(gene_res_df, "/Volumes/MyPassport/TBI/Supplemental tables/Suppl_Table11_GPC_gene_DEA.xlsx")
 gene_vst <- varianceStabilizingTransformation(gene_dds)
 
 gene_vst_df <- as.data.frame(assay(gene_vst))
@@ -301,5 +305,3 @@ for(herv in names(ERVcounts_IFNgamma_upreg_melt_list)){
 
 ggarrange(plotlist = ERVcounts_IFNgamma_upreg_plots, ncol=4, nrow = 2)
 ```
-
-
